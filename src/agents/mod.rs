@@ -3,11 +3,13 @@ use async_trait::async_trait;
 
 pub mod chat;
 
+use crate::context::ContextStore;
+
 /// Base trait for all agent types
 #[async_trait]
 pub trait Agent {
-    /// Run the agent's main functionality
-    async fn run(&self) -> Result<()>;
+    /// Run the agent's main functionality with context support
+    async fn run(&self, context: &ContextStore, session_id: &str) -> Result<()>;
 
     /// Get the agent's name/type
     fn name(&self) -> &'static str;
