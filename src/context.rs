@@ -317,6 +317,48 @@ impl ContextStore {
         })
     }
 
+    /// List all session IDs that have context entries
+    pub async fn list_sessions(&self) -> Result<Vec<SessionInfo>> {
+        let conn = self.connection.lock().unwrap();
+
+        let mut stmt = conn.prepare(
+            "SELECT session_id, COUNT(*) as entry_count, MIN(timestamp) as first_entry, MAX(timestamp) as last_entry
+             FROM context_entries 
+             GROUP BY session_id 
+             ORDER BY last_entry DESC"
+        )?;
+
+        let sessions = stmt
+            .query_map([], |row| {
+                let first_timestamp =
+                    DateTime::from_timestamp(row.get::<_, i64>(2)?, 0).unwrap_or_else(Utc::now);
+                let last_timestamp =
+                    DateTime::from_timestamp(row.get::<_, i64>(3)?, 0).unwrap_or_else(Utc::now);
+
+                Ok(SessionInfo {
+                    session_id: row.get(0)?,
+                    entry_count: row.get::<_, i64>(1)? as usize,
+                    first_entry: first_timestamp,
+                    last_entry: last_timestamp,
+                })
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        debug!("Retrieved {} sessions", sessions.len());
+        Ok(sessions)
+    }
+
+    /// Check if a session exists in the database
+    pub async fn session_exists(&self, session_id: &str) -> Result<bool> {
+        let conn = self.connection.lock().unwrap();
+
+        let mut stmt =
+            conn.prepare("SELECT COUNT(*) FROM context_entries WHERE session_id = ?1")?;
+        let count: i64 = stmt.query_row(params![session_id], |row| row.get(0))?;
+
+        Ok(count > 0)
+    }
+
     /// Calculate cosine similarity between two embeddings
     fn cosine_similarity(&self, a: &[f32], b: &[f32]) -> f32 {
         if a.len() != b.len() {
@@ -340,6 +382,15 @@ impl ContextStore {
 pub struct ContextStats {
     pub total_entries: usize,
     pub embedding_dimension: usize,
+}
+
+/// Information about a session
+#[derive(Debug, Clone)]
+pub struct SessionInfo {
+    pub session_id: String,
+    pub entry_count: usize,
+    pub first_entry: DateTime<Utc>,
+    pub last_entry: DateTime<Utc>,
 }
 
 #[cfg(test)]

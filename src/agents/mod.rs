@@ -9,10 +9,15 @@ use crate::context::ContextStore;
 #[async_trait]
 pub trait Agent {
     /// Run the agent's main functionality with context support
-    async fn run(&self, context: &ContextStore, session_id: &str) -> Result<()>;
+    /// Returns Ok(Some(new_session_id)) if session should be switched
+    /// Returns Ok(None) if agent should exit normally
+    async fn run(&self, context: &ContextStore, session_id: &str) -> Result<Option<String>>;
 
     /// Get the agent's name/type
     fn name(&self) -> &'static str;
+
+    /// Get the initial greeting question for this agent
+    fn greeting(&self) -> &'static str;
 }
 
 /// Common configuration shared across agents

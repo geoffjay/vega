@@ -2,6 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use std::io::{self, Write};
 use tracing::{debug, error, info, warn};
+use uuid::Uuid;
 
 use super::{Agent, AgentConfig};
 use crate::context::{ContextEntry, ContextStore};
@@ -88,22 +89,101 @@ impl ChatAgent {
 
         Ok(response)
     }
+
+    /// Handle slash commands
+    async fn handle_command(
+        &self,
+        command: &str,
+        context: &ContextStore,
+        current_session_id: &str,
+    ) -> Result<Option<String>> {
+        let parts: Vec<&str> = command.trim_start_matches('/').split_whitespace().collect();
+        if parts.is_empty() {
+            return Ok(None);
+        }
+
+        match parts[0] {
+            "quit" => {
+                println!("Goodbye!");
+                std::process::exit(0);
+            }
+            "new" => {
+                let new_session_id = Uuid::new_v4().to_string();
+                println!("Starting new session with ID: {}", new_session_id);
+                println!(
+                    "(Use /session {} to return to this session)",
+                    new_session_id
+                );
+                return Ok(Some(new_session_id));
+            }
+            "session" => {
+                if parts.len() == 1 {
+                    println!("Current session ID: {}", current_session_id);
+                } else if parts.len() == 2 {
+                    let target_session = parts[1];
+                    if context.session_exists(target_session).await? {
+                        println!("Switching to session: {}", target_session);
+                        return Ok(Some(target_session.to_string()));
+                    } else {
+                        println!(
+                            "Session '{}' not found. Use /sessions to list available sessions.",
+                            target_session
+                        );
+                    }
+                } else {
+                    println!("Usage: /session [session_id]");
+                }
+            }
+            "sessions" => {
+                let sessions = context.list_sessions().await?;
+                if sessions.is_empty() {
+                    println!("No sessions found.");
+                } else {
+                    println!("Available sessions:");
+                    for session in sessions {
+                        let current_marker = if session.session_id == current_session_id {
+                            " (current)"
+                        } else {
+                            ""
+                        };
+                        println!(
+                            "  {} - {} entries, last active: {}{}",
+                            session.session_id,
+                            session.entry_count,
+                            session.last_entry.format("%Y-%m-%d %H:%M:%S UTC"),
+                            current_marker
+                        );
+                    }
+                }
+            }
+            _ => {
+                println!("Unknown command: /{}", parts[0]);
+                println!("Available commands: /quit, /new, /session, /sessions, /session <id>");
+            }
+        }
+
+        Ok(None)
+    }
 }
 
 #[async_trait]
 impl Agent for ChatAgent {
-    async fn run(&self, context: &ContextStore, session_id: &str) -> Result<()> {
+    async fn run(&self, context: &ContextStore, session_id: &str) -> Result<Option<String>> {
         if self.config.verbose {
             info!("Starting chat session with ID: {}", session_id);
         }
 
-        println!("Chat with AI Agent (use 'quit' or Ctrl+C to exit)");
-        println!("Type your message and press Enter to send.");
+        println!("Chat with AI Agent (use 'quit', '/quit' or Ctrl+C to exit)");
+        println!("Available commands: /quit, /new, /session, /sessions, /session <id>");
+        println!();
+
+        // Show the agent's greeting
+        println!("\x1b[93mAgent\x1b[0m: {}", self.greeting());
         println!();
 
         loop {
             // Get user input
-            print!("\x1b[94mYou\x1b[0m: ");
+            print!("\x1b[94mλ\x1b[0m ");
             io::stdout().flush()?;
 
             let mut input = String::new();
@@ -132,6 +212,27 @@ impl Agent for ChatAgent {
                             info!("User requested to quit");
                         }
                         break;
+                    }
+
+                    // Handle slash commands
+                    if user_input.starts_with('/') {
+                        match self.handle_command(user_input, context, session_id).await {
+                            Ok(Some(new_session_id)) => {
+                                if self.config.verbose {
+                                    info!("Switching to session: {}", new_session_id);
+                                }
+                                return Ok(Some(new_session_id));
+                            }
+                            Ok(None) => {
+                                // Command handled, continue loop
+                                continue;
+                            }
+                            Err(e) => {
+                                error!("Error handling command: {}", e);
+                                println!("\x1b[91mError\x1b[0m: Failed to handle command");
+                            }
+                        }
+                        continue;
                     }
 
                     if self.config.verbose {
@@ -190,11 +291,15 @@ impl Agent for ChatAgent {
             info!("Chat session ended");
         }
 
-        Ok(())
+        Ok(None)
     }
 
     fn name(&self) -> &'static str {
         "chat"
+    }
+
+    fn greeting(&self) -> &'static str {
+        "What can I help you with?"
     }
 }
 

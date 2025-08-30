@@ -1,14 +1,16 @@
 use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 pub mod agents;
 pub mod context;
 pub mod embeddings;
 pub mod providers;
+pub mod web;
 
+use crate::web::start_web_server;
 use agents::chat::ChatAgent;
 use agents::{Agent, AgentConfig};
 use context::ContextStore;
@@ -55,6 +57,10 @@ struct Args {
     /// Can also be set via ALLY_SESSION_ID environment variable
     #[arg(long, env = "ALLY_SESSION_ID")]
     session_id: Option<String>,
+
+    /// Port for the web server (default: 3000)
+    #[arg(long, default_value = "3000")]
+    web_port: u16,
 }
 
 #[tokio::main]
@@ -88,6 +94,7 @@ async fn main() -> Result<()> {
 
     // Initialize context store
     let context = ContextStore::new(&args.context_db, 384).await?;
+    let context_arc = std::sync::Arc::new(context);
 
     // Create agent configuration
     let config = AgentConfig::new(
@@ -97,22 +104,54 @@ async fn main() -> Result<()> {
         args.openrouter_api_key,
     );
 
-    // Create and run the chat agent
+    // Start web server in background
+    let web_context = context_arc.clone();
+    let web_port = args.web_port;
+    tokio::spawn(async move {
+        if let Err(e) = start_web_server(web_context, web_port).await {
+            error!("Web server error: {}", e);
+        }
+    });
+
+    info!(
+        "Web interface available at http://127.0.0.1:{}",
+        args.web_port
+    );
+
+    // Create the chat agent
     let agent = ChatAgent::new(config)?;
 
-    // Print session information to user
-    if is_new_session {
-        println!("Starting new session with ID: {}", session_id);
-        println!(
-            "(Use --session-id {} to resume this session later)",
-            session_id
-        );
-    } else {
-        println!("Resuming session: {}", session_id);
-    }
-    println!();
+    // Main session loop to handle session switching
+    let mut current_session_id = session_id;
+    let mut is_new_session_flag = is_new_session;
 
-    agent.run(&context, &session_id).await?;
+    loop {
+        // Print session information to user
+        if is_new_session_flag {
+            println!("Starting new session with ID: {}", current_session_id);
+            println!(
+                "(Use --session-id {} to resume this session later)",
+                current_session_id
+            );
+        } else {
+            println!("Resuming session: {}", current_session_id);
+        }
+        println!();
+
+        // Run the agent
+        match agent.run(&*context_arc, &current_session_id).await? {
+            Some(new_session_id) => {
+                // Agent requested session switch
+                current_session_id = new_session_id;
+                is_new_session_flag = true; // Treat switched sessions as new for display purposes
+                println!(); // Add spacing between sessions
+            }
+            None => {
+                // Agent exited normally
+                break;
+            }
+        }
+    }
 
     Ok(())
 }
@@ -194,6 +233,7 @@ mod tests {
             openrouter_api_key: None,
             context_db: "./test_context.db".into(),
             session_id: Some("test_session".to_string()),
+            web_port: 3000,
         };
 
         let config = AgentConfig::new(
