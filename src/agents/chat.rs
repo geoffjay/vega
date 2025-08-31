@@ -103,8 +103,46 @@ Respond in a conversational and helpful manner, using tools as needed to provide
         full_prompt.push_str("Current request: ");
         full_prompt.push_str(prompt);
 
-        // Create and use the appropriate Rig agent based on provider
-        let response = match self.config.provider.as_str() {
+        // Try with tools first, fallback to no tools if not supported
+        let response = match self.try_with_tools(&full_prompt).await {
+            Ok(response) => response,
+            Err(e) => {
+                let error_msg = e.to_string();
+                if error_msg.contains("No endpoints found that support tool use")
+                    || error_msg.contains("tool")
+                    || error_msg.contains("function")
+                {
+                    if self.config.verbose {
+                        warn!(
+                            "Tools not supported by model {}, falling back to non-tool response",
+                            self.config.model
+                        );
+                    }
+                    println!(
+                        "⚠️  Note: The current model doesn't support tools. Consider using a tool-compatible model like:"
+                    );
+                    println!("   - OpenAI: gpt-4, gpt-4-turbo, gpt-3.5-turbo");
+                    println!("   - Anthropic: claude-3-opus, claude-3-sonnet, claude-3-haiku");
+                    println!("   - Or use Ollama with a compatible model");
+                    println!();
+
+                    self.get_response_without_tools(&full_prompt).await?
+                } else {
+                    return Err(e);
+                }
+            }
+        };
+
+        if self.config.verbose {
+            debug!("Received response from AI model");
+        }
+
+        Ok(response)
+    }
+
+    /// Try to get response with tools enabled
+    async fn try_with_tools(&self, full_prompt: &str) -> Result<String> {
+        match self.config.provider.as_str() {
             "openai" => {
                 let client = providers::openai::Client::from_env();
                 let agent = client
@@ -119,7 +157,10 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                     .tool(ListFilesTool::new())
                     .build();
 
-                agent.prompt(&full_prompt).await?
+                agent
+                    .prompt(full_prompt)
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))
             }
             "openrouter" => {
                 let client = providers::openrouter::Client::from_env();
@@ -135,7 +176,10 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                     .tool(ListFilesTool::new())
                     .build();
 
-                agent.prompt(&full_prompt).await?
+                agent
+                    .prompt(full_prompt)
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))
             }
             "ollama" => {
                 let client = providers::ollama::Client::new();
@@ -151,21 +195,67 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                     .tool(ListFilesTool::new())
                     .build();
 
-                agent.prompt(&full_prompt).await?
+                agent
+                    .prompt(full_prompt)
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))
             }
-            _ => {
-                return Err(anyhow::anyhow!(
-                    "Unsupported provider for tool-enabled agent: {}",
-                    self.config.provider
-                ));
-            }
-        };
-
-        if self.config.verbose {
-            debug!("Received response from AI model with tools");
+            _ => Err(anyhow::anyhow!(
+                "Unsupported provider for tool-enabled agent: {}",
+                self.config.provider
+            )),
         }
+    }
 
-        Ok(response)
+    /// Get response without tools (fallback for models that don't support tools)
+    async fn get_response_without_tools(&self, full_prompt: &str) -> Result<String> {
+        let simple_preamble = "You are a helpful AI assistant. Respond in a conversational and helpful manner. While you don't have access to tools in this mode, you can still provide helpful information, explanations, and guidance.";
+
+        match self.config.provider.as_str() {
+            "openai" => {
+                let client = providers::openai::Client::from_env();
+                let agent = client
+                    .agent(&self.config.model)
+                    .preamble(simple_preamble)
+                    .max_tokens(2048)
+                    .build();
+
+                agent
+                    .prompt(full_prompt)
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))
+            }
+            "openrouter" => {
+                let client = providers::openrouter::Client::from_env();
+                let agent = client
+                    .agent(&self.config.model)
+                    .preamble(simple_preamble)
+                    .max_tokens(2048)
+                    .build();
+
+                agent
+                    .prompt(full_prompt)
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))
+            }
+            "ollama" => {
+                let client = providers::ollama::Client::new();
+                let agent = client
+                    .agent(&self.config.model)
+                    .preamble(simple_preamble)
+                    .max_tokens(2048)
+                    .build();
+
+                agent
+                    .prompt(full_prompt)
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))
+            }
+            _ => Err(anyhow::anyhow!(
+                "Unsupported provider: {}",
+                self.config.provider
+            )),
+        }
     }
 
     /// Handle slash commands
@@ -274,6 +364,9 @@ Respond in a conversational and helpful manner, using tools as needed to provide
             "tools" => {
                 self.print_tools_help();
             }
+            "models" => {
+                self.print_model_recommendations();
+            }
             _ => {
                 println!("Unknown command: /{}", parts[0]);
                 println!("Type /help for available commands.");
@@ -288,6 +381,7 @@ Respond in a conversational and helpful manner, using tools as needed to provide
         println!("Available commands:");
         println!("  /help       - Show this help message");
         println!("  /tools      - Show available tools and their usage");
+        println!("  /models     - Show recommended models for tool support");
         println!("  /quit       - Exit the chat");
         println!("  /new        - Start a new conversation session");
         println!("  /session    - Show current session ID or switch to another session");
@@ -300,6 +394,9 @@ Respond in a conversational and helpful manner, using tools as needed to provide
         );
         println!(
             "Simply ask for what you need and the agent will use the appropriate tools automatically."
+        );
+        println!(
+            "Note: Tool support depends on the model being used. Use /models for recommendations."
         );
     }
 
@@ -320,6 +417,66 @@ Respond in a conversational and helpful manner, using tools as needed to provide
         println!("  \"Find all functions named 'main' in this project\"");
         println!("  \"Create a new README.md file with project description\"");
         println!("  \"Run 'cargo check' to verify the project builds\"");
+    }
+
+    /// Print model recommendations for tool support
+    fn print_model_recommendations(&self) {
+        println!("🤖 Recommended models for tool support:");
+        println!();
+        println!("📍 Current configuration:");
+        println!("   Provider: {}", self.config.provider);
+        println!("   Model: {}", self.config.model);
+        println!();
+        
+        match self.config.provider.as_str() {
+            "openai" => {
+                println!("✅ OpenAI models with tool support:");
+                println!("   • gpt-4 (recommended)");
+                println!("   • gpt-4-turbo");
+                println!("   • gpt-4o");
+                println!("   • gpt-3.5-turbo");
+                println!();
+                println!("💡 Usage: --model gpt-4");
+            }
+            "openrouter" => {
+                println!("✅ OpenRouter models with tool support:");
+                println!("   🔥 Recommended:");
+                println!("   • openai/gpt-4");
+                println!("   • openai/gpt-4-turbo");
+                println!("   • openai/gpt-4o");
+                println!("   • anthropic/claude-3-opus");
+                println!("   • anthropic/claude-3-sonnet");
+                println!("   • anthropic/claude-3-haiku");
+                println!();
+                println!("   📋 Other compatible models:");
+                println!("   • openai/gpt-3.5-turbo");
+                println!("   • mistralai/mistral-large");
+                println!("   • google/gemini-pro");
+                println!();
+                println!("💡 Usage: --model openai/gpt-4");
+                println!("📖 More info: https://openrouter.ai/docs/provider-routing");
+            }
+            "ollama" => {
+                println!("✅ Ollama models with tool support:");
+                println!("   🔥 Recommended (if available locally):");
+                println!("   • llama3.1 (8B, 70B, 405B)");
+                println!("   • llama3.2 (1B, 3B)");
+                println!("   • mistral");
+                println!("   • codellama");
+                println!();
+                println!("💡 Usage: --model llama3.1");
+                println!("📥 Install: ollama pull llama3.1");
+            }
+            _ => {
+                println!("❓ Unknown provider: {}", self.config.provider);
+                println!("   Supported providers: openai, openrouter, ollama");
+            }
+        }
+        
+        println!();
+        println!("🔧 To change model:");
+        println!("   • Command line: ally --provider openrouter --model openai/gpt-4");
+        println!("   • Environment: export ALLY_PROVIDER=openrouter ALLY_MODEL=openai/gpt-4");
     }
 }
 
