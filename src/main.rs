@@ -8,6 +8,7 @@ pub mod agents;
 pub mod context;
 pub mod embeddings;
 pub mod providers;
+pub mod tools;
 pub mod web;
 
 use crate::web::start_web_server;

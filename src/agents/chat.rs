@@ -1,5 +1,8 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use rig::completion::Prompt;
+use rig::prelude::*;
+use rig::providers;
 use std::io::{self, Write};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
@@ -7,12 +10,11 @@ use uuid::Uuid;
 use super::{Agent, AgentConfig};
 use crate::context::{ContextEntry, ContextStore};
 use crate::embeddings::EmbeddingService;
-use crate::providers::LLMProvider;
+use crate::tools::*;
 
-/// Chat agent that provides interactive conversation with an LLM
+/// Chat agent that provides interactive conversation with an LLM and tool support
 #[derive(Debug)]
 pub struct ChatAgent {
-    provider: LLMProvider,
     config: AgentConfig,
     embedding_service: EmbeddingService,
 }
@@ -22,18 +24,14 @@ impl ChatAgent {
     pub fn new(config: AgentConfig) -> Result<Self> {
         if config.verbose {
             info!(
-                "Initializing {} client with model: {}",
+                "Initializing tool-enabled {} client with model: {}",
                 config.provider, config.model
             );
         }
 
-        let provider =
-            LLMProvider::new(&config.provider, &config.model, config.api_key.as_deref())?;
-
         let embedding_service = EmbeddingService::new(384); // Standard embedding dimension
 
         Ok(ChatAgent {
-            provider,
             config,
             embedding_service,
         })
@@ -44,15 +42,38 @@ impl ChatAgent {
         &self.config
     }
 
-    /// Get a response from the AI for the given prompt with context
-    async fn get_response(
+    /// Get the system prompt for the agent
+    fn get_system_prompt(&self) -> String {
+        r#"You are a helpful AI assistant with access to various tools that can help you perform tasks and answer questions more effectively.
+
+Available tools:
+- web_search: Search the web for current information
+- bash: Execute shell commands (use with caution)
+- code_search: Search through code files using regex patterns
+- read_file: Read the contents of files
+- edit_file: Create or modify files
+- list_files: List files and directories
+
+Guidelines for tool usage:
+1. Always explain what you're doing before using a tool
+2. Use tools when they can provide more accurate or up-to-date information
+3. Be cautious with bash commands - avoid destructive operations
+4. When editing files, consider creating backups for important changes
+5. Use code_search to understand codebases before making changes
+6. Provide clear explanations of tool results
+
+Respond in a conversational and helpful manner, using tools as needed to provide the best possible assistance."#.to_string()
+    }
+
+    /// Get a response from the AI using Rig with tools and context
+    async fn get_response_with_tools(
         &self,
         prompt: &str,
         context: &ContextStore,
         session_id: &str,
     ) -> Result<String> {
         if self.config.verbose {
-            debug!("Sending prompt to AI model with context");
+            debug!("Sending prompt to AI model with tools and context");
         }
 
         // Generate embedding for the current prompt
@@ -63,28 +84,85 @@ impl ChatAgent {
             .get_relevant_context(query_embedding, Some(session_id), 5)
             .await?;
 
-        // Build context-aware preamble
-        let mut preamble =
-            "You are a helpful AI assistant. Respond in a conversational and helpful manner."
-                .to_string();
+        // Build context-aware prompt
+        let mut full_prompt = String::new();
 
         if !relevant_context.is_empty() {
-            preamble.push_str("\n\nHere is some relevant context from our previous conversations:");
+            full_prompt.push_str("Context from previous conversations:\n");
             for entry in &relevant_context {
-                preamble.push_str(&format!(
-                    "\n[{}] {}: {}",
+                full_prompt.push_str(&format!(
+                    "[{}] {}: {}\n",
                     entry.timestamp.format("%H:%M"),
                     entry.role,
                     entry.content
                 ));
             }
-            preamble.push_str("\n\nPlease use this context to provide a more informed response.");
+            full_prompt.push_str("\n");
         }
 
-        let response = self.provider.prompt(prompt, &preamble, 2048).await?;
+        full_prompt.push_str("Current request: ");
+        full_prompt.push_str(prompt);
+
+        // Create and use the appropriate Rig agent based on provider
+        let response = match self.config.provider.as_str() {
+            "openai" => {
+                let client = providers::openai::Client::from_env();
+                let agent = client
+                    .agent(&self.config.model)
+                    .preamble(&self.get_system_prompt())
+                    .max_tokens(2048)
+                    .tool(WebSearchTool::new())
+                    .tool(BashTool::new())
+                    .tool(CodeSearchTool::new())
+                    .tool(ReadFileTool::new())
+                    .tool(EditFileTool::new())
+                    .tool(ListFilesTool::new())
+                    .build();
+
+                agent.prompt(&full_prompt).await?
+            }
+            "openrouter" => {
+                let client = providers::openrouter::Client::from_env();
+                let agent = client
+                    .agent(&self.config.model)
+                    .preamble(&self.get_system_prompt())
+                    .max_tokens(2048)
+                    .tool(WebSearchTool::new())
+                    .tool(BashTool::new())
+                    .tool(CodeSearchTool::new())
+                    .tool(ReadFileTool::new())
+                    .tool(EditFileTool::new())
+                    .tool(ListFilesTool::new())
+                    .build();
+
+                agent.prompt(&full_prompt).await?
+            }
+            "ollama" => {
+                let client = providers::ollama::Client::new();
+                let agent = client
+                    .agent(&self.config.model)
+                    .preamble(&self.get_system_prompt())
+                    .max_tokens(2048)
+                    .tool(WebSearchTool::new())
+                    .tool(BashTool::new())
+                    .tool(CodeSearchTool::new())
+                    .tool(ReadFileTool::new())
+                    .tool(EditFileTool::new())
+                    .tool(ListFilesTool::new())
+                    .build();
+
+                agent.prompt(&full_prompt).await?
+            }
+            _ => {
+                return Err(anyhow::anyhow!(
+                    "Unsupported provider for tool-enabled agent: {}",
+                    self.config.provider
+                ));
+            }
+        };
 
         if self.config.verbose {
-            debug!("Received response from AI model");
+            debug!("Received response from AI model with tools");
         }
 
         Ok(response)
@@ -156,13 +234,92 @@ impl ChatAgent {
                     }
                 }
             }
+            "clear" => {
+                context.clear_session(current_session_id).await?;
+                println!("Session history cleared.");
+            }
+            "export" => {
+                if parts.len() != 2 {
+                    println!("Usage: /export <filename>");
+                    return Ok(None);
+                }
+                let filename = parts[1];
+                let entries = context
+                    .get_session_history(current_session_id, None)
+                    .await?;
+
+                let mut export_content = String::new();
+                export_content.push_str(&format!(
+                    "# Chat Session Export: {}\n\n",
+                    current_session_id
+                ));
+
+                for entry in entries {
+                    export_content.push_str(&format!(
+                        "## {} - {}\n{}\n\n",
+                        entry.role,
+                        entry.timestamp.format("%Y-%m-%d %H:%M:%S"),
+                        entry.content
+                    ));
+                }
+
+                match tokio::fs::write(filename, export_content).await {
+                    Ok(_) => println!("Session exported to {}", filename),
+                    Err(e) => println!("Failed to export session: {}", e),
+                }
+            }
+            "help" => {
+                self.print_help();
+            }
+            "tools" => {
+                self.print_tools_help();
+            }
             _ => {
                 println!("Unknown command: /{}", parts[0]);
-                println!("Available commands: /quit, /new, /session, /sessions, /session <id>");
+                println!("Type /help for available commands.");
             }
         }
 
         Ok(None)
+    }
+
+    /// Print help information
+    fn print_help(&self) {
+        println!("Available commands:");
+        println!("  /help       - Show this help message");
+        println!("  /tools      - Show available tools and their usage");
+        println!("  /quit       - Exit the chat");
+        println!("  /new        - Start a new conversation session");
+        println!("  /session    - Show current session ID or switch to another session");
+        println!("  /sessions   - List all available sessions");
+        println!("  /clear      - Clear current session history");
+        println!("  /export <filename> - Export current session to a file");
+        println!();
+        println!(
+            "This agent has access to tools for web search, file operations, code search, and shell commands."
+        );
+        println!(
+            "Simply ask for what you need and the agent will use the appropriate tools automatically."
+        );
+    }
+
+    /// Print tools help information
+    fn print_tools_help(&self) {
+        println!("Available tools:");
+        println!("  🔍 web_search    - Search the web for current information");
+        println!("  💻 bash          - Execute shell commands (use with caution)");
+        println!("  🔎 code_search   - Search through code files using regex patterns");
+        println!("  📖 read_file     - Read the contents of files");
+        println!("  ✏️  edit_file     - Create or modify files");
+        println!("  📁 list_files    - List files and directories");
+        println!();
+        println!("Examples:");
+        println!("  \"Search for the latest news about Rust programming\"");
+        println!("  \"List all .rs files in the src directory\"");
+        println!("  \"Read the contents of Cargo.toml\"");
+        println!("  \"Find all functions named 'main' in this project\"");
+        println!("  \"Create a new README.md file with project description\"");
+        println!("  \"Run 'cargo check' to verify the project builds\"");
     }
 }
 
@@ -173,8 +330,10 @@ impl Agent for ChatAgent {
             info!("Starting chat session with ID: {}", session_id);
         }
 
-        println!("Chat with AI Agent (use 'quit', '/quit' or Ctrl+C to exit)");
-        println!("Available commands: /quit, /new, /session, /sessions, /session <id>");
+        println!(
+            "Tool-enabled chat started! Type /help for commands or /tools for tool information."
+        );
+        println!("Session ID: {}", session_id);
         println!();
 
         // Show the agent's greeting
@@ -252,8 +411,11 @@ impl Agent for ChatAgent {
                         warn!("Failed to store user context: {}", e);
                     }
 
-                    // Send message to AI and get response
-                    match self.get_response(user_input, context, session_id).await {
+                    // Send message to AI and get response with tools
+                    match self
+                        .get_response_with_tools(user_input, context, session_id)
+                        .await
+                    {
                         Ok(response) => {
                             println!("\x1b[93mAgent\x1b[0m: {}", response);
                             println!();
@@ -299,7 +461,7 @@ impl Agent for ChatAgent {
     }
 
     fn greeting(&self) -> &'static str {
-        "What can I help you with?"
+        "I'm your AI assistant with access to various tools. I can search the web, work with files, execute commands, and more. How can I help you today?"
     }
 }
 
@@ -336,9 +498,8 @@ mod tests {
         let config = create_test_config("invalid", "model", None);
         let agent = ChatAgent::new(config);
 
-        assert!(agent.is_err());
-        let error = agent.unwrap_err();
-        assert!(error.to_string().contains("Unsupported provider: invalid"));
+        // Agent creation succeeds, but provider validation happens at runtime
+        assert!(agent.is_ok());
     }
 
     #[test]
@@ -346,9 +507,8 @@ mod tests {
         let config = create_test_config("openrouter", "gpt-4", None);
         let agent = ChatAgent::new(config);
 
-        assert!(agent.is_err());
-        let error = agent.unwrap_err();
-        assert!(error.to_string().contains("OpenRouter API key is required"));
+        // Agent creation succeeds, but API key validation happens at runtime
+        assert!(agent.is_ok());
     }
 
     #[test]
@@ -373,6 +533,5 @@ mod tests {
 
         assert_eq!(agent.config().provider, original_provider);
         assert_eq!(agent.config().model, original_model);
-        assert_eq!(agent.provider.model(), "test-model");
     }
 }
