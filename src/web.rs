@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
-use tracing::{debug, info};
+// Web server module - uses custom logger when available
 
 use crate::context::ContextStore;
 use crate::logging::AllyLogger;
@@ -99,6 +99,15 @@ pub async fn start_web_server_with_logger(
     logger: Option<Arc<AllyLogger>>,
     port: u16,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // Log using custom logger if available, otherwise use println
+    if let Some(ref logger) = logger {
+        let _ = logger
+            .info(format!("Web server starting on http://127.0.0.1:{}", port))
+            .await;
+    } else {
+        println!("Web server starting on http://127.0.0.1:{}", port);
+    }
+
     let state = WebState {
         context_store,
         logger,
@@ -114,7 +123,6 @@ pub async fn start_web_server_with_logger(
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
-    info!("Web server starting on http://127.0.0.1:{}", port);
 
     axum::serve(listener, app).await?;
     Ok(())
@@ -148,7 +156,12 @@ async fn sessions_handler(
             }))
         }
         Err(e) => {
-            debug!("Error fetching sessions: {}", e);
+            // Log error if logger is available
+            if let Some(ref logger) = state.logger {
+                let _ = logger
+                    .debug(format!("Error fetching sessions: {}", e))
+                    .await;
+            }
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -188,7 +201,12 @@ async fn session_handler(
             }))
         }
         Err(e) => {
-            debug!("Error fetching session history: {}", e);
+            // Log error if logger is available
+            if let Some(ref logger) = state.logger {
+                let _ = logger
+                    .debug(format!("Error fetching session history: {}", e))
+                    .await;
+            }
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
@@ -229,7 +247,12 @@ async fn context_handler(
                 }))
             }
             Err(e) => {
-                debug!("Error fetching context entries: {}", e);
+                // Log error if logger is available
+                if let Some(ref logger) = state.logger {
+                    let _ = logger
+                        .debug(format!("Error fetching context entries: {}", e))
+                        .await;
+                }
                 Err(StatusCode::INTERNAL_SERVER_ERROR)
             }
         }
@@ -280,7 +303,12 @@ async fn session_logs_handler(
                 }))
             }
             Err(e) => {
-                debug!("Error fetching session logs: {}", e);
+                // Log error if logger is available
+                if let Some(ref logger) = state.logger {
+                    let _ = logger
+                        .debug(format!("Error fetching session logs: {}", e))
+                        .await;
+                }
                 Err(StatusCode::INTERNAL_SERVER_ERROR)
             }
         }

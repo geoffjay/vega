@@ -2,7 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use std::env;
 use std::path::PathBuf;
-use tracing::{error, info};
+// Main module - uses custom logger for all output
 use uuid::Uuid;
 
 pub mod agents;
@@ -211,9 +211,20 @@ async fn main() -> Result<()> {
     // Display configuration at startup
     args.display_configuration();
 
-    // Initialize basic tracing for internal library logging
-    let filter = if args.verbose { "debug" } else { "info" };
-    tracing_subscriber::fmt().with_env_filter(filter).init();
+    // Initialize tracing based on log output configuration
+    let log_outputs: Vec<&str> = args.log_output.split(',').collect();
+    let should_log_to_console = log_outputs.contains(&"console");
+
+    if should_log_to_console {
+        // Only initialize console tracing if console output is requested
+        let filter = if args.verbose { "debug" } else { "info" };
+        tracing_subscriber::fmt().with_env_filter(filter).init();
+    } else {
+        // Initialize a no-op subscriber to suppress tracing output
+        use tracing_subscriber::filter::LevelFilter;
+        use tracing_subscriber::prelude::*;
+        tracing_subscriber::registry().with(LevelFilter::OFF).init();
+    }
 
     // Generate or use provided session ID
     let is_new_session = args.session_id.is_none();
@@ -221,14 +232,7 @@ async fn main() -> Result<()> {
         .session_id
         .unwrap_or_else(|| Uuid::new_v4().to_string());
 
-    if args.verbose {
-        info!("Context database: {:?}", args.context_db);
-        if is_new_session {
-            info!("Generated new session ID: {}", session_id);
-        } else {
-            info!("Using existing session ID: {}", session_id);
-        }
-    }
+    // We'll log this information with our custom logger after it's initialized
 
     // Create embedding provider to determine dimension
     let embedding_provider = crate::embeddings::EmbeddingProvider::new(
@@ -248,7 +252,6 @@ async fn main() -> Result<()> {
     } else {
         LogLevel::Info
     };
-    let log_outputs: Vec<&str> = args.log_output.split(',').collect();
 
     let mut logger_config = LoggerConfig::new(session_id.clone())
         .with_console_level(log_level)
@@ -324,14 +327,16 @@ async fn main() -> Result<()> {
     tokio::spawn(async move {
         if let Err(e) = start_web_server_with_logger(web_context, Some(web_logger), web_port).await
         {
-            error!("Web server error: {}", e);
+            eprintln!("Web server error: {}", e);
         }
     });
 
-    info!(
-        "Web interface available at http://127.0.0.1:{}",
-        args.web_port
-    );
+    ally_logger
+        .info(format!(
+            "Web interface available at http://127.0.0.1:{}",
+            args.web_port
+        ))
+        .await?;
 
     // Create the chat agent
     let agent = ChatAgent::new(config)?;
