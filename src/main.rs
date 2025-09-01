@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
+use std::env;
 use std::path::PathBuf;
 use tracing::{debug, error, info};
 use uuid::Uuid;
@@ -86,9 +87,92 @@ struct Args {
     yolo: bool,
 }
 
+impl Args {
+    /// Display configuration values from command line arguments and environment variables
+    fn display_configuration(&self) {
+        println!("🚀 Ally Configuration");
+        println!("═══════════════════════════════════════════════════════════════");
+
+        // Display command line arguments
+        println!("📋 Command Line Arguments:");
+        println!(
+            "  • Verbose logging: {}",
+            if self.verbose { "enabled" } else { "disabled" }
+        );
+        println!("  • LLM provider: {}", self.provider);
+        println!("  • LLM model: {}", self.model);
+        println!("  • Embedding provider: {}", self.embedding_provider);
+        if let Some(ref model) = self.embedding_model {
+            println!("  • Embedding model: {}", model);
+        } else {
+            println!("  • Embedding model: <default>");
+        }
+        println!("  • Context database: {}", self.context_db.display());
+        if let Some(ref session) = self.session_id {
+            println!("  • Session ID: {}", session);
+        } else {
+            println!("  • Session ID: <will be generated>");
+        }
+        println!("  • Web server port: {}", self.web_port);
+        println!(
+            "  • YOLO mode: {}",
+            if self.yolo { "enabled" } else { "disabled" }
+        );
+
+        // Display API key status (without revealing the actual keys)
+        if self.openrouter_api_key.is_some() {
+            println!("  • OpenRouter API key: ✓ configured");
+        } else {
+            println!("  • OpenRouter API key: ✗ not set");
+        }
+
+        if self.openai_api_key.is_some() {
+            println!("  • OpenAI API key: ✓ configured");
+        } else {
+            println!("  • OpenAI API key: ✗ not set");
+        }
+
+        println!();
+
+        // Display environment variables
+        println!("🌍 Environment Variables:");
+        let env_vars = [
+            ("ALLY_PROVIDER", "LLM provider"),
+            ("ALLY_MODEL", "LLM model"),
+            ("ALLY_EMBEDDING_PROVIDER", "Embedding provider"),
+            ("ALLY_EMBEDDING_MODEL", "Embedding model"),
+            ("ALLY_CONTEXT_DB", "Context database path"),
+            ("ALLY_SESSION_ID", "Session ID"),
+            ("OPENROUTER_API_KEY", "OpenRouter API key"),
+            ("OPENAI_API_KEY", "OpenAI API key"),
+        ];
+
+        for (var_name, description) in &env_vars {
+            match env::var(var_name) {
+                Ok(value) => {
+                    if var_name.contains("API_KEY") {
+                        println!("  • {} ({}): ✓ configured", var_name, description);
+                    } else {
+                        println!("  • {} ({}): {}", var_name, description, value);
+                    }
+                }
+                Err(_) => {
+                    println!("  • {} ({}): ✗ not set", var_name, description);
+                }
+            }
+        }
+
+        println!("═══════════════════════════════════════════════════════════════");
+        println!();
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
+
+    // Display configuration at startup
+    args.display_configuration();
 
     // Initialize logging
     let filter = if args.verbose { "debug" } else { "info" };
