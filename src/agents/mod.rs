@@ -49,6 +49,7 @@ pub struct AgentConfig {
     pub embedding_provider: String,
     pub embedding_model: Option<String>,
     pub openai_api_key: Option<String>,
+    pub yolo: bool,
 }
 
 impl AgentConfig {
@@ -60,6 +61,7 @@ impl AgentConfig {
         embedding_provider: String,
         embedding_model: Option<String>,
         openai_api_key: Option<String>,
+        yolo: bool,
     ) -> Self {
         Self {
             verbose,
@@ -69,6 +71,7 @@ impl AgentConfig {
             embedding_provider,
             embedding_model,
             openai_api_key,
+            yolo,
         }
     }
 }
@@ -123,6 +126,7 @@ mod tests {
             "simple".to_string(),
             None,
             None,
+            false,
         );
 
         assert_eq!(config.verbose, true);
@@ -144,6 +148,7 @@ mod tests {
             "openai".to_string(),
             Some("text-embedding-3-small".to_string()),
             Some("openai-key".to_string()),
+            false,
         );
 
         assert_eq!(config.verbose, false);
@@ -168,6 +173,7 @@ mod tests {
             "simple".to_string(),
             None,
             None,
+            false,
         );
 
         let cloned_config = config.clone();

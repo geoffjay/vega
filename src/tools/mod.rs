@@ -4,6 +4,7 @@ pub use rig::tool::Tool as RigTool;
 // Tool modules
 pub mod bash;
 pub mod code_search;
+pub mod confirmed;
 pub mod edit_file;
 pub mod list_files;
 pub mod read_file;
@@ -12,6 +13,7 @@ pub mod web_search;
 // Re-export all tools
 pub use bash::BashTool;
 pub use code_search::CodeSearchTool;
+pub use confirmed::{ConfirmedBashTool, ConfirmedEditFileTool};
 pub use edit_file::EditFileTool;
 pub use list_files::ListFilesTool;
 pub use read_file::ReadFileTool;

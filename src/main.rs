@@ -80,6 +80,10 @@ struct Args {
     /// Port for the web server (default: 3000)
     #[arg(long, default_value = "3000")]
     web_port: u16,
+
+    /// Skip tool execution confirmation prompts (YOLO mode)
+    #[arg(long)]
+    yolo: bool,
 }
 
 #[tokio::main]
@@ -132,6 +136,7 @@ async fn main() -> Result<()> {
         args.embedding_provider,
         args.embedding_model,
         args.openai_api_key,
+        args.yolo,
     );
 
     // Start web server in background
@@ -193,12 +198,20 @@ mod tests {
 
     #[test]
     fn test_default_args() {
+        // Temporarily unset environment variables for this test
+        unsafe {
+            std::env::remove_var("ALLY_PROVIDER");
+            std::env::remove_var("ALLY_MODEL");
+            std::env::remove_var("OPENROUTER_API_KEY");
+        }
+
         let args = Args::try_parse_from(&["ally"]).unwrap();
 
         assert_eq!(args.verbose, false);
         assert_eq!(args.provider, "ollama");
         assert_eq!(args.model, "llama3.2");
         assert_eq!(args.openrouter_api_key, None);
+        assert_eq!(args.yolo, false);
     }
 
     #[test]
@@ -267,6 +280,7 @@ mod tests {
             context_db: "./test_context.db".into(),
             session_id: Some("test_session".to_string()),
             web_port: 3000,
+            yolo: false,
         };
 
         let config = AgentConfig::new(
@@ -277,6 +291,7 @@ mod tests {
             args.embedding_provider,
             args.embedding_model,
             args.openai_api_key,
+            args.yolo,
         );
 
         assert_eq!(config.verbose, true);

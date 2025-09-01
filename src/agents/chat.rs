@@ -169,10 +169,10 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                     .preamble(&system_prompt)
                     .max_tokens(2048)
                     .tool(WebSearchTool::new())
-                    .tool(BashTool::new())
+                    .tool(ConfirmedBashTool::new(self.config.yolo))
                     .tool(CodeSearchTool::new())
                     .tool(ReadFileTool::new())
-                    .tool(EditFileTool::new())
+                    .tool(ConfirmedEditFileTool::new(self.config.yolo))
                     .tool(ListFilesTool::new())
                     .build();
 
@@ -189,10 +189,10 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                     .preamble(&system_prompt)
                     .max_tokens(2048)
                     .tool(WebSearchTool::new())
-                    .tool(BashTool::new())
+                    .tool(ConfirmedBashTool::new(self.config.yolo))
                     .tool(CodeSearchTool::new())
                     .tool(ReadFileTool::new())
-                    .tool(EditFileTool::new())
+                    .tool(ConfirmedEditFileTool::new(self.config.yolo))
                     .tool(ListFilesTool::new())
                     .build();
 
@@ -209,10 +209,10 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                     .preamble(&system_prompt)
                     .max_tokens(2048)
                     .tool(WebSearchTool::new())
-                    .tool(BashTool::new())
+                    .tool(ConfirmedBashTool::new(self.config.yolo))
                     .tool(CodeSearchTool::new())
                     .tool(ReadFileTool::new())
-                    .tool(EditFileTool::new())
+                    .tool(ConfirmedEditFileTool::new(self.config.yolo))
                     .tool(ListFilesTool::new())
                     .build();
 
@@ -668,6 +668,7 @@ mod tests {
             "simple".to_string(),
             None,
             None,
+            false,
         )
     }
 

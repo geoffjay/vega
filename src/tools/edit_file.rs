@@ -45,12 +45,9 @@ impl EditFileTool {
         let path = Path::new(&args.path);
         let file_exists = path.exists();
 
-        // Check if we can create the file if it doesn't exist
-        if !file_exists && !args.create_if_missing {
-            return Err(ToolError::FileNotFound(format!(
-                "File '{}' does not exist and create_if_missing is false",
-                args.path
-            )));
+        // Auto-create file if it doesn't exist (always allow creation for better UX)
+        if !file_exists {
+            println!("File '{}' does not exist, creating it...", args.path);
         }
 
         // If file exists, check if it's actually a file
@@ -205,7 +202,7 @@ impl Tool for EditFileTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Edits or creates a file with the specified content. Supports full file replacement or line range editing with optional backup.".to_string(),
+            description: "Edits or creates a file with the specified content. Automatically creates the file if it doesn't exist. Supports full file replacement or line range editing with optional backup.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -262,7 +259,7 @@ mod tests {
 
     #[test]
     fn test_edit_file_tool_creation() {
-        let tool = EditFileTool::new();
+        let _tool = EditFileTool::new();
         assert_eq!(EditFileTool::NAME, "edit_file");
     }
 
@@ -401,12 +398,17 @@ mod tests {
         };
 
         let result = tool.call(args).await;
+        // Now the tool attempts to create files automatically, so this should fail with an IO error
+        // due to permission issues rather than FileNotFound
         assert!(result.is_err());
 
-        if let Err(ToolError::FileNotFound(_)) = result {
-            // Expected error type
+        if let Err(ToolError::Io(_)) = result {
+            // Expected error type - IO error due to permission issues
         } else {
-            panic!("Expected FileNotFound error");
+            panic!(
+                "Expected IO error due to permission issues, got: {:?}",
+                result
+            );
         }
     }
 }
