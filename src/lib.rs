@@ -1,6 +1,7 @@
 pub mod agents;
 pub mod context;
 pub mod embeddings;
+pub mod logging;
 pub mod providers;
 pub mod tools;
 pub mod web;

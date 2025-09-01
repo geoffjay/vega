@@ -41,7 +41,7 @@
             color: #666;
         }
 
-        .sessions-panel, .context-panel {
+        .sessions-panel, .context-panel, .logs-panel {
             background: white;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -109,6 +109,129 @@
         .context-entry.assistant {
             border-left: 4px solid #28a745;
             background: #f8fff8;
+        }
+
+        .log-entry {
+            padding: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9em;
+        }
+
+        .log-entry.error {
+            border-left: 4px solid #dc3545;
+            background: #fff5f5;
+        }
+
+        .log-entry.warn {
+            border-left: 4px solid #ffc107;
+            background: #fffef5;
+        }
+
+        .log-entry.info {
+            border-left: 4px solid #17a2b8;
+            background: #f5feff;
+        }
+
+        .log-entry.debug {
+            border-left: 4px solid #6c757d;
+            background: #f8f9fa;
+        }
+
+        .log-entry.trace {
+            border-left: 4px solid #e9ecef;
+            background: #f8f9fa;
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .log-level {
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.7em;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        .log-level.error {
+            background: #dc3545;
+            color: white;
+        }
+
+        .log-level.warn {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .log-level.info {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .log-level.debug {
+            background: #6c757d;
+            color: white;
+        }
+
+        .log-level.trace {
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        .log-timestamp {
+            font-size: 0.8em;
+            color: #666;
+        }
+
+        .log-message {
+            margin-bottom: 5px;
+        }
+
+        .log-meta {
+            font-size: 0.8em;
+            color: #666;
+            opacity: 0.8;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #e0e0e0;
+            background: #f8f9fa;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .tab {
+            padding: 15px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            background: #e9ecef;
+        }
+
+        .tab.active {
+            background: white;
+            border-bottom-color: #007bff;
+            color: #007bff;
+            font-weight: 600;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 20px;
+        }
+
+        .tab-content.active {
+            display: block;
         }
 
         .entry-header {
@@ -202,15 +325,24 @@
         </div>
 
         <div class="context-panel">
-            <div class="panel-header">
-                <h2>Context Entries</h2>
-                <span id="selected-session" style="color: #666; font-size: 0.9em;"></span>
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('context')">Context Entries</div>
+                <div class="tab" onclick="switchTab('logs')">Session Logs</div>
+                <span id="selected-session" style="color: #666; font-size: 0.9em; margin-left: auto; padding: 15px 20px;"></span>
             </div>
-            <div class="panel-content">
+            
+            <div id="context-tab" class="tab-content active">
                 <div id="context-loading" class="loading" style="display: none;">Loading context...</div>
                 <div id="context-error" class="error" style="display: none;"></div>
                 <div id="context-empty" class="empty-state">Select a session to view its context entries</div>
                 <div id="context-list"></div>
+            </div>
+            
+            <div id="logs-tab" class="tab-content">
+                <div id="logs-loading" class="loading" style="display: none;">Loading logs...</div>
+                <div id="logs-error" class="error" style="display: none;"></div>
+                <div id="logs-empty" class="empty-state">Select a session to view its logs</div>
+                <div id="logs-list"></div>
             </div>
         </div>
     </div>
@@ -271,8 +403,31 @@
             currentSessionId = sessionId;
             document.getElementById('selected-session').textContent = `Session: ${sessionId}`;
             
-            // Load context for this session
-            await loadContext(sessionId);
+            // Load content for the active tab
+            const activeTab = document.querySelector('.tab.active').textContent.toLowerCase();
+            if (activeTab.includes('context')) {
+                await loadContext(sessionId);
+            } else if (activeTab.includes('logs')) {
+                await loadLogs(sessionId);
+            }
+        }
+
+        function switchTab(tabName) {
+            // Update tab UI
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            document.querySelector(`.tab:nth-child(${tabName === 'context' ? '1' : '2'})`).classList.add('active');
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            
+            // Load content if session is selected
+            if (currentSessionId) {
+                if (tabName === 'context') {
+                    loadContext(currentSessionId);
+                } else if (tabName === 'logs') {
+                    loadLogs(currentSessionId);
+                }
+            }
         }
 
         async function loadContext(sessionId) {
@@ -317,6 +472,69 @@
                 loadingEl.style.display = 'none';
                 errorEl.style.display = 'block';
                 errorEl.textContent = 'Error loading context: ' + error.message;
+            }
+        }
+
+        async function loadLogs(sessionId) {
+            const loadingEl = document.getElementById('logs-loading');
+            const errorEl = document.getElementById('logs-error');
+            const emptyEl = document.getElementById('logs-empty');
+            const listEl = document.getElementById('logs-list');
+
+            loadingEl.style.display = 'block';
+            errorEl.style.display = 'none';
+            emptyEl.style.display = 'none';
+            listEl.innerHTML = '';
+
+            try {
+                const response = await fetch(`/api/sessions/${sessionId}/logs?limit=100`);
+                if (!response.ok) throw new Error('Failed to fetch logs');
+                
+                const data = await response.json();
+                loadingEl.style.display = 'none';
+
+                if (data.logs.length === 0) {
+                    emptyEl.style.display = 'block';
+                    emptyEl.textContent = 'No logs found for this session';
+                    return;
+                }
+
+                data.logs.forEach(log => {
+                    const logEl = document.createElement('div');
+                    logEl.className = `log-entry ${log.level.toLowerCase()}`;
+                    
+                    let metaInfo = '';
+                    if (log.module || log.file) {
+                        metaInfo = `<div class="log-meta">`;
+                        if (log.file && log.line) {
+                            metaInfo += `${log.file}:${log.line}`;
+                        } else if (log.module) {
+                            metaInfo += log.module;
+                        }
+                        if (Object.keys(log.metadata).length > 0) {
+                            const metaStr = Object.entries(log.metadata)
+                                .map(([k, v]) => `${k}: ${v}`)
+                                .join(', ');
+                            metaInfo += ` | ${metaStr}`;
+                        }
+                        metaInfo += `</div>`;
+                    }
+                    
+                    logEl.innerHTML = `
+                        <div class="log-header">
+                            <span class="log-level ${log.level.toLowerCase()}">${log.level}</span>
+                            <span class="log-timestamp">${log.timestamp}</span>
+                        </div>
+                        <div class="log-message">${escapeHtml(log.message)}</div>
+                        ${metaInfo}
+                    `;
+                    
+                    listEl.appendChild(logEl);
+                });
+            } catch (error) {
+                loadingEl.style.display = 'none';
+                errorEl.style.display = 'block';
+                errorEl.textContent = 'Error loading logs: ' + error.message;
             }
         }
 

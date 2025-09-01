@@ -12,11 +12,13 @@ use tower_http::cors::CorsLayer;
 use tracing::{debug, info};
 
 use crate::context::ContextStore;
+use crate::logging::AllyLogger;
 
 /// Web server state
 #[derive(Clone)]
 pub struct WebState {
     pub context_store: Arc<ContextStore>,
+    pub logger: Option<Arc<AllyLogger>>,
 }
 
 /// Query parameters for context entries
@@ -52,6 +54,28 @@ pub struct SessionsResponse {
     pub total: usize,
 }
 
+/// Response for logs API
+#[derive(Serialize)]
+pub struct LogsResponse {
+    pub logs: Vec<LogEntryResponse>,
+    pub total: usize,
+}
+
+/// Serializable log entry for API responses
+#[derive(Serialize)]
+pub struct LogEntryResponse {
+    pub id: String,
+    pub timestamp: String,
+    pub level: String,
+    pub message: String,
+    pub session_id: String,
+    pub module: Option<String>,
+    pub file: Option<String>,
+    pub line: Option<u32>,
+    pub target: Option<String>,
+    pub metadata: HashMap<String, String>,
+}
+
 /// Serializable session info for API responses
 #[derive(Serialize)]
 pub struct SessionInfoResponse {
@@ -66,12 +90,25 @@ pub async fn start_web_server(
     context_store: Arc<ContextStore>,
     port: u16,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let state = WebState { context_store };
+    start_web_server_with_logger(context_store, None, port).await
+}
+
+/// Start the web server with optional logger
+pub async fn start_web_server_with_logger(
+    context_store: Arc<ContextStore>,
+    logger: Option<Arc<AllyLogger>>,
+    port: u16,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let state = WebState {
+        context_store,
+        logger,
+    };
 
     let app = Router::new()
         .route("/", get(index_handler))
         .route("/api/sessions", get(sessions_handler))
         .route("/api/sessions/:session_id", get(session_handler))
+        .route("/api/sessions/:session_id/logs", get(session_logs_handler))
         .route("/api/context", get(context_handler))
         .layer(CorsLayer::permissive())
         .with_state(state);
@@ -201,6 +238,56 @@ async fn context_handler(
         // In a full implementation, you might want to return recent entries across all sessions
         Ok(Json(ContextResponse {
             entries: vec![],
+            total: 0,
+        }))
+    }
+}
+
+/// Get logs for a specific session
+async fn session_logs_handler(
+    Path(session_id): Path<String>,
+    Query(query): Query<ContextQuery>,
+    State(state): State<WebState>,
+) -> Result<Json<LogsResponse>, StatusCode> {
+    let limit = query.limit.unwrap_or(100);
+
+    if let Some(ref logger) = state.logger {
+        match logger.get_session_logs(&session_id, Some(limit)).await {
+            Ok(logs) => {
+                let log_responses: Vec<LogEntryResponse> = logs
+                    .into_iter()
+                    .map(|log| LogEntryResponse {
+                        id: log.id,
+                        timestamp: log
+                            .timestamp
+                            .format("%Y-%m-%d %H:%M:%S%.3f UTC")
+                            .to_string(),
+                        level: log.level,
+                        message: log.message,
+                        session_id: log.session_id,
+                        module: log.module,
+                        file: log.file,
+                        line: log.line,
+                        target: log.target,
+                        metadata: log.metadata,
+                    })
+                    .collect();
+
+                let total = log_responses.len();
+                Ok(Json(LogsResponse {
+                    logs: log_responses,
+                    total,
+                }))
+            }
+            Err(e) => {
+                debug!("Error fetching session logs: {}", e);
+                Err(StatusCode::INTERNAL_SERVER_ERROR)
+            }
+        }
+    } else {
+        // Return empty response if logger is not configured
+        Ok(Json(LogsResponse {
+            logs: vec![],
             total: 0,
         }))
     }

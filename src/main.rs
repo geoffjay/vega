@@ -2,20 +2,22 @@ use anyhow::Result;
 use clap::Parser;
 use std::env;
 use std::path::PathBuf;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 use uuid::Uuid;
 
 pub mod agents;
 pub mod context;
 pub mod embeddings;
+pub mod logging;
 pub mod providers;
 pub mod tools;
 pub mod web;
 
-use crate::web::start_web_server;
+use crate::web::start_web_server_with_logger;
 use agents::chat::ChatAgent;
 use agents::{Agent, AgentConfig};
 use context::ContextStore;
+use logging::{AllyLogger, LogLevel, LoggerConfig};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -30,6 +32,9 @@ use context::ContextStore;
                   - ALLY_EMBEDDING_MODEL: Set the embedding model name\n\
                   - ALLY_CONTEXT_DB: Set the context database path\n\
                   - ALLY_SESSION_ID: Set the session ID for context sharing\n\
+                  - ALLY_LOG_OUTPUT: Set log output destinations (console, file, vector)\n\
+                  - ALLY_LOG_FILE: Set the log file path\n\
+                  - ALLY_LOG_STRUCTURED: Enable structured JSON logging\n\
                   - OPENROUTER_API_KEY: Set the OpenRouter API key\n\
                   - OPENAI_API_KEY: Set the OpenAI API key for embeddings"
 )]
@@ -85,6 +90,21 @@ struct Args {
     /// Skip tool execution confirmation prompts (YOLO mode)
     #[arg(long)]
     yolo: bool,
+
+    /// Log output destination (console, file, vector, or combinations like "console,file")
+    /// Can also be set via ALLY_LOG_OUTPUT environment variable
+    #[arg(long, env = "ALLY_LOG_OUTPUT", default_value = "console")]
+    log_output: String,
+
+    /// Log file path (required if file logging is enabled)
+    /// Can also be set via ALLY_LOG_FILE environment variable
+    #[arg(long, env = "ALLY_LOG_FILE")]
+    log_file: Option<PathBuf>,
+
+    /// Enable structured logging (JSON format for file and vector outputs)
+    /// Can also be set via ALLY_LOG_STRUCTURED environment variable
+    #[arg(long, env = "ALLY_LOG_STRUCTURED")]
+    log_structured: bool,
 }
 
 impl Args {
@@ -118,6 +138,20 @@ impl Args {
             "  • YOLO mode: {}",
             if self.yolo { "enabled" } else { "disabled" }
         );
+        println!("  • Log output: {}", self.log_output);
+        if let Some(ref log_file) = self.log_file {
+            println!("  • Log file: {}", log_file.display());
+        } else {
+            println!("  • Log file: <not set>");
+        }
+        println!(
+            "  • Structured logging: {}",
+            if self.log_structured {
+                "enabled"
+            } else {
+                "disabled"
+            }
+        );
 
         // Display API key status (without revealing the actual keys)
         if self.openrouter_api_key.is_some() {
@@ -143,6 +177,9 @@ impl Args {
             ("ALLY_EMBEDDING_MODEL", "Embedding model"),
             ("ALLY_CONTEXT_DB", "Context database path"),
             ("ALLY_SESSION_ID", "Session ID"),
+            ("ALLY_LOG_OUTPUT", "Log output destinations"),
+            ("ALLY_LOG_FILE", "Log file path"),
+            ("ALLY_LOG_STRUCTURED", "Structured logging"),
             ("OPENROUTER_API_KEY", "OpenRouter API key"),
             ("OPENAI_API_KEY", "OpenAI API key"),
         ];
@@ -174,15 +211,9 @@ async fn main() -> Result<()> {
     // Display configuration at startup
     args.display_configuration();
 
-    // Initialize logging
+    // Initialize basic tracing for internal library logging
     let filter = if args.verbose { "debug" } else { "info" };
-
     tracing_subscriber::fmt().with_env_filter(filter).init();
-
-    if args.verbose {
-        info!("Verbose logging enabled");
-        debug!("Arguments: {:?}", args);
-    }
 
     // Generate or use provided session ID
     let is_new_session = args.session_id.is_none();
@@ -211,6 +242,69 @@ async fn main() -> Result<()> {
     let context = ContextStore::new(&args.context_db, embedding_dimension).await?;
     let context_arc = std::sync::Arc::new(context);
 
+    // Initialize custom logger
+    let log_level = if args.verbose {
+        LogLevel::Debug
+    } else {
+        LogLevel::Info
+    };
+    let log_outputs: Vec<&str> = args.log_output.split(',').collect();
+
+    let mut logger_config = LoggerConfig::new(session_id.clone())
+        .with_console_level(log_level)
+        .with_structured(args.log_structured);
+
+    // Configure file logging if requested
+    if log_outputs.contains(&"file") {
+        if let Some(ref log_file) = args.log_file {
+            logger_config = logger_config.with_file_path(Some(log_file.clone()));
+        } else {
+            return Err(anyhow::anyhow!(
+                "File logging requested but no log file path provided. Use --log-file or ALLY_LOG_FILE."
+            ));
+        }
+    }
+
+    // Configure vector store logging if requested
+    if log_outputs.contains(&"vector") {
+        logger_config = logger_config.with_vector_store(true);
+    }
+
+    let mut ally_logger = AllyLogger::new(logger_config)?;
+
+    // Add context store and embedding service for vector logging
+    if log_outputs.contains(&"vector") {
+        let embedding_service = std::sync::Arc::new(embedding_provider.create_service());
+        ally_logger = ally_logger
+            .with_context_store(context_arc.clone())
+            .with_embedding_service(embedding_service);
+    }
+
+    let ally_logger = std::sync::Arc::new(ally_logger);
+
+    // Log startup information with custom logger
+    if args.verbose {
+        ally_logger
+            .info("Verbose logging enabled".to_string())
+            .await?;
+        ally_logger
+            .debug("Verbose logging enabled with custom logger".to_string())
+            .await?;
+    }
+
+    ally_logger
+        .info(format!("Context database: {:?}", args.context_db))
+        .await?;
+    if is_new_session {
+        ally_logger
+            .info(format!("Generated new session ID: {}", session_id))
+            .await?;
+    } else {
+        ally_logger
+            .info(format!("Using existing session ID: {}", session_id))
+            .await?;
+    }
+
     // Create agent configuration
     let config = AgentConfig::new(
         args.verbose,
@@ -225,9 +319,11 @@ async fn main() -> Result<()> {
 
     // Start web server in background
     let web_context = context_arc.clone();
+    let web_logger = ally_logger.clone();
     let web_port = args.web_port;
     tokio::spawn(async move {
-        if let Err(e) = start_web_server(web_context, web_port).await {
+        if let Err(e) = start_web_server_with_logger(web_context, Some(web_logger), web_port).await
+        {
             error!("Web server error: {}", e);
         }
     });
@@ -365,6 +461,9 @@ mod tests {
             session_id: Some("test_session".to_string()),
             web_port: 3000,
             yolo: false,
+            log_output: "console".to_string(),
+            log_file: None,
+            log_structured: false,
         };
 
         let config = AgentConfig::new(
