@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use super::{Agent, AgentConfig};
 use crate::context::{ContextEntry, ContextStore};
-use crate::embeddings::EmbeddingService;
+use crate::embeddings::{EmbeddingProvider, EmbeddingService};
 use crate::tools::*;
 
 /// Chat agent that provides interactive conversation with an LLM and tool support
@@ -27,9 +27,20 @@ impl ChatAgent {
                 "Initializing tool-enabled {} client with model: {}",
                 config.provider, config.model
             );
+            info!(
+                "Using embedding provider: {} with model: {:?}",
+                config.embedding_provider, config.embedding_model
+            );
         }
 
-        let embedding_service = EmbeddingService::new(384); // Standard embedding dimension
+        // Create embedding provider from configuration
+        let embedding_provider = EmbeddingProvider::new(
+            &config.embedding_provider,
+            config.embedding_model.as_deref(),
+            config.openai_api_key.as_deref(),
+        )?;
+
+        let embedding_service = embedding_provider.create_service();
 
         Ok(ChatAgent {
             config,
@@ -427,7 +438,7 @@ Respond in a conversational and helpful manner, using tools as needed to provide
         println!("   Provider: {}", self.config.provider);
         println!("   Model: {}", self.config.model);
         println!();
-        
+
         match self.config.provider.as_str() {
             "openai" => {
                 println!("✅ OpenAI models with tool support:");
@@ -472,7 +483,7 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                 println!("   Supported providers: openai, openrouter, ollama");
             }
         }
-        
+
         println!();
         println!("🔧 To change model:");
         println!("   • Command line: ally --provider openrouter --model openai/gpt-4");
@@ -627,7 +638,15 @@ mod tests {
     use super::*;
 
     fn create_test_config(provider: &str, model: &str, api_key: Option<String>) -> AgentConfig {
-        AgentConfig::new(false, provider.to_string(), model.to_string(), api_key)
+        AgentConfig::new(
+            false,
+            provider.to_string(),
+            model.to_string(),
+            api_key,
+            "simple".to_string(),
+            None,
+            None,
+        )
     }
 
     #[test]

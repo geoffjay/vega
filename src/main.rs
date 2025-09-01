@@ -25,9 +25,12 @@ use context::ContextStore;
                   Environment Variables:\n\
                   - ALLY_PROVIDER: Set the LLM provider (ollama, openrouter)\n\
                   - ALLY_MODEL: Set the model name\n\
+                  - ALLY_EMBEDDING_PROVIDER: Set the embedding provider (openai, ollama, simple)\n\
+                  - ALLY_EMBEDDING_MODEL: Set the embedding model name\n\
                   - ALLY_CONTEXT_DB: Set the context database path\n\
                   - ALLY_SESSION_ID: Set the session ID for context sharing\n\
-                  - OPENROUTER_API_KEY: Set the OpenRouter API key"
+                  - OPENROUTER_API_KEY: Set the OpenRouter API key\n\
+                  - OPENAI_API_KEY: Set the OpenAI API key for embeddings"
 )]
 struct Args {
     /// Enable verbose logging
@@ -48,6 +51,21 @@ struct Args {
     /// Can also be set via OPENROUTER_API_KEY environment variable
     #[arg(long, env)]
     openrouter_api_key: Option<String>,
+
+    /// Embedding provider to use (openai, ollama, or simple)
+    /// Can also be set via ALLY_EMBEDDING_PROVIDER environment variable
+    #[arg(long, env = "ALLY_EMBEDDING_PROVIDER", default_value = "simple")]
+    embedding_provider: String,
+
+    /// Embedding model name to use
+    /// Can also be set via ALLY_EMBEDDING_MODEL environment variable
+    #[arg(long, env = "ALLY_EMBEDDING_MODEL")]
+    embedding_model: Option<String>,
+
+    /// OpenAI API key (required if using openai embedding provider)
+    /// Can also be set via OPENAI_API_KEY environment variable
+    #[arg(long, env)]
+    openai_api_key: Option<String>,
 
     /// Path to the context database file
     /// Can also be set via ALLY_CONTEXT_DB environment variable
@@ -93,8 +111,16 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Initialize context store
-    let context = ContextStore::new(&args.context_db, 384).await?;
+    // Create embedding provider to determine dimension
+    let embedding_provider = crate::embeddings::EmbeddingProvider::new(
+        &args.embedding_provider,
+        args.embedding_model.as_deref(),
+        args.openai_api_key.as_deref(),
+    )?;
+    let embedding_dimension = embedding_provider.create_service().dimension();
+
+    // Initialize context store with correct embedding dimension
+    let context = ContextStore::new(&args.context_db, embedding_dimension).await?;
     let context_arc = std::sync::Arc::new(context);
 
     // Create agent configuration
@@ -103,6 +129,9 @@ async fn main() -> Result<()> {
         args.provider,
         args.model,
         args.openrouter_api_key,
+        args.embedding_provider,
+        args.embedding_model,
+        args.openai_api_key,
     );
 
     // Start web server in background
@@ -232,6 +261,9 @@ mod tests {
             provider: "ollama".to_string(),
             model: "llama3.2".to_string(),
             openrouter_api_key: None,
+            embedding_provider: "simple".to_string(),
+            embedding_model: None,
+            openai_api_key: None,
             context_db: "./test_context.db".into(),
             session_id: Some("test_session".to_string()),
             web_port: 3000,
@@ -242,11 +274,17 @@ mod tests {
             args.provider,
             args.model,
             args.openrouter_api_key,
+            args.embedding_provider,
+            args.embedding_model,
+            args.openai_api_key,
         );
 
         assert_eq!(config.verbose, true);
         assert_eq!(config.provider, "ollama");
         assert_eq!(config.model, "llama3.2");
         assert_eq!(config.api_key, None);
+        assert_eq!(config.embedding_provider, "simple");
+        assert_eq!(config.embedding_model, None);
+        assert_eq!(config.openai_api_key, None);
     }
 }

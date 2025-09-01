@@ -1,32 +1,142 @@
 use anyhow::Result;
+use rig::client::EmbeddingsClient;
+use rig::embeddings::EmbeddingsBuilder;
+use rig::providers;
 use tracing::{debug, warn};
 
-/// Simple embedding service that generates embeddings for text
-/// In a production system, you'd want to use a proper embedding model
-/// like sentence-transformers, OpenAI embeddings, or local models
+/// Embedding service that generates embeddings for text using real models
 #[derive(Debug)]
 pub struct EmbeddingService {
-    dimension: usize,
+    provider: EmbeddingProvider,
 }
 
 impl EmbeddingService {
-    /// Create a new embedding service with the specified dimension
-    pub fn new(dimension: usize) -> Self {
-        Self { dimension }
+    /// Create a new embedding service from a provider
+    pub fn new(provider: EmbeddingProvider) -> Self {
+        Self { provider }
     }
 
     /// Generate an embedding for the given text
-    /// This is a simple hash-based embedding for demonstration
-    /// In production, replace with actual embedding model
     pub async fn embed(&self, text: &str) -> Result<Vec<f32>> {
         if text.is_empty() {
             warn!("Attempting to embed empty text");
-            return Ok(vec![0.0; self.dimension]);
+            return Ok(vec![0.0; self.dimension()]);
         }
 
+        match &self.provider {
+            EmbeddingProvider::Simple { dimension } => self.embed_simple(text, *dimension).await,
+            EmbeddingProvider::OpenAI { client, model } => {
+                let embedding_model = client.embedding_model(model);
+                let embeddings = EmbeddingsBuilder::new(embedding_model)
+                    .document(text)?
+                    .build()
+                    .await?;
+
+                if let Some((_, embedding)) = embeddings.into_iter().next() {
+                    if let Some(emb) = embedding.into_iter().next() {
+                        Ok(emb.vec.into_iter().map(|x| x as f32).collect())
+                    } else {
+                        Ok(vec![0.0; self.dimension()])
+                    }
+                } else {
+                    Ok(vec![0.0; self.dimension()])
+                }
+            }
+            EmbeddingProvider::Ollama { client, model } => {
+                let embedding_model = client.embedding_model(model);
+                let embeddings = EmbeddingsBuilder::new(embedding_model)
+                    .document(text)?
+                    .build()
+                    .await?;
+
+                if let Some((_, embedding)) = embeddings.into_iter().next() {
+                    if let Some(emb) = embedding.into_iter().next() {
+                        Ok(emb.vec.into_iter().map(|x| x as f32).collect())
+                    } else {
+                        Ok(vec![0.0; self.dimension()])
+                    }
+                } else {
+                    Ok(vec![0.0; self.dimension()])
+                }
+            }
+        }
+    }
+
+    /// Generate embeddings for multiple texts
+    pub async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
+        match &self.provider {
+            EmbeddingProvider::Simple { dimension } => {
+                let mut embeddings = Vec::with_capacity(texts.len());
+                for text in texts {
+                    embeddings.push(self.embed_simple(text, *dimension).await?);
+                }
+                Ok(embeddings)
+            }
+            EmbeddingProvider::OpenAI { client, model } => {
+                let embedding_model = client.embedding_model(model);
+                let mut builder = EmbeddingsBuilder::new(embedding_model);
+                for text in texts {
+                    builder = builder.document(text)?;
+                }
+                let embeddings = builder.build().await?;
+                Ok(embeddings
+                    .into_iter()
+                    .map(|(_, embedding)| {
+                        embedding
+                            .into_iter()
+                            .next()
+                            .map(|emb| emb.vec.into_iter().map(|x| x as f32).collect())
+                            .unwrap_or_default()
+                    })
+                    .collect())
+            }
+            EmbeddingProvider::Ollama { client, model } => {
+                let embedding_model = client.embedding_model(model);
+                let mut builder = EmbeddingsBuilder::new(embedding_model);
+                for text in texts {
+                    builder = builder.document(text)?;
+                }
+                let embeddings = builder.build().await?;
+                Ok(embeddings
+                    .into_iter()
+                    .map(|(_, embedding)| {
+                        embedding
+                            .into_iter()
+                            .next()
+                            .map(|emb| emb.vec.into_iter().map(|x| x as f32).collect())
+                            .unwrap_or_default()
+                    })
+                    .collect())
+            }
+        }
+    }
+
+    /// Get the embedding dimension
+    pub fn dimension(&self) -> usize {
+        match &self.provider {
+            EmbeddingProvider::Simple { dimension } => *dimension,
+            EmbeddingProvider::OpenAI { client: _, model } => {
+                // Common OpenAI embedding dimensions
+                match model.as_str() {
+                    "text-embedding-3-large" => 3072,
+                    "text-embedding-3-small" => 1536,
+                    "text-embedding-ada-002" => 1536,
+                    _ => 1536, // Default fallback
+                }
+            }
+            EmbeddingProvider::Ollama { .. } => {
+                // Most Ollama embedding models use 384 or 768 dimensions
+                // This should ideally be queried from the model, but for now we'll use a common default
+                384
+            }
+        }
+    }
+
+    /// Simple hash-based embedding for development/testing
+    async fn embed_simple(&self, text: &str, dimension: usize) -> Result<Vec<f32>> {
         // Simple deterministic embedding based on text characteristics
-        // This is NOT a real embedding - replace with proper model
-        let mut embedding = vec![0.0; self.dimension];
+        // This is NOT a real embedding - only for fallback/testing
+        let mut embedding = vec![0.0; dimension];
 
         // Use text characteristics to generate pseudo-embedding
         let text_lower = text.to_lowercase();
@@ -36,7 +146,7 @@ impl EmbeddingService {
 
         // Fill embedding with deterministic values based on text
         for (i, value) in embedding.iter_mut().enumerate() {
-            let base = (i as f32 + 1.0) / (self.dimension as f32);
+            let base = (i as f32 + 1.0) / (dimension as f32);
             let text_hash = self.simple_hash(&text_lower) as f32;
             let word_influence = if i < words.len() {
                 self.simple_hash(words[i]) as f32 / 1000.0
@@ -55,25 +165,11 @@ impl EmbeddingService {
             *value = (*value - 0.5) * 2.0;
         }
 
-        debug!("Generated embedding for text of length {}", text.len());
+        debug!(
+            "Generated simple embedding for text of length {}",
+            text.len()
+        );
         Ok(embedding)
-    }
-
-    /// Generate embeddings for multiple texts
-    pub async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
-        let mut embeddings = Vec::with_capacity(texts.len());
-
-        for text in texts {
-            embeddings.push(self.embed(text).await?);
-        }
-
-        debug!("Generated {} embeddings", embeddings.len());
-        Ok(embeddings)
-    }
-
-    /// Get the embedding dimension
-    pub fn dimension(&self) -> usize {
-        self.dimension
     }
 
     /// Simple hash function for deterministic pseudo-embeddings
@@ -87,34 +183,57 @@ impl EmbeddingService {
 }
 
 /// Configuration for different embedding providers
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub enum EmbeddingProvider {
     /// Simple hash-based embeddings (for development/testing)
     Simple { dimension: usize },
     /// OpenAI embeddings (requires API key)
-    OpenAI { model: String, api_key: String },
-    /// Local model embeddings (requires model path)
-    Local {
-        model_path: String,
-        dimension: usize,
+    OpenAI {
+        client: providers::openai::Client,
+        model: String,
+    },
+    /// Ollama embeddings (local models)
+    Ollama {
+        client: providers::ollama::Client,
+        model: String,
     },
 }
 
 impl EmbeddingProvider {
-    /// Create an embedding service from the provider configuration
-    pub fn create_service(&self) -> Result<EmbeddingService> {
-        match self {
-            EmbeddingProvider::Simple { dimension } => Ok(EmbeddingService::new(*dimension)),
-            EmbeddingProvider::OpenAI { .. } => {
-                // TODO: Implement OpenAI embeddings
-                Err(anyhow::anyhow!("OpenAI embeddings not yet implemented"))
+    /// Create a new embedding provider from configuration
+    pub fn new(
+        provider_name: &str,
+        model: Option<&str>,
+        openai_api_key: Option<&str>,
+    ) -> Result<Self> {
+        match provider_name {
+            "simple" => Ok(EmbeddingProvider::Simple { dimension: 384 }),
+            "openai" => {
+                let api_key = openai_api_key.ok_or_else(|| {
+                    anyhow::anyhow!("OpenAI API key is required for OpenAI embedding provider. Set --openai-api-key or OPENAI_API_KEY environment variable.")
+                })?;
+
+                let client = providers::openai::Client::new(api_key);
+                let model = model.unwrap_or("text-embedding-3-small").to_string();
+
+                Ok(EmbeddingProvider::OpenAI { client, model })
             }
-            EmbeddingProvider::Local { dimension, .. } => {
-                // TODO: Implement local model embeddings
-                warn!("Local embeddings not yet implemented, falling back to simple");
-                Ok(EmbeddingService::new(*dimension))
+            "ollama" => {
+                let client = providers::ollama::Client::new();
+                let model = model.unwrap_or("nomic-embed-text").to_string();
+
+                Ok(EmbeddingProvider::Ollama { client, model })
             }
+            _ => Err(anyhow::anyhow!(
+                "Unsupported embedding provider: {}. Supported providers: simple, openai, ollama",
+                provider_name
+            )),
         }
+    }
+
+    /// Create an embedding service from the provider configuration
+    pub fn create_service(&self) -> EmbeddingService {
+        EmbeddingService::new(self.clone())
     }
 }
 
@@ -160,13 +279,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_embedding_service_creation() {
-        let service = EmbeddingService::new(384);
+        let provider = EmbeddingProvider::Simple { dimension: 384 };
+        let service = EmbeddingService::new(provider);
         assert_eq!(service.dimension(), 384);
     }
 
     #[tokio::test]
     async fn test_embed_text() {
-        let service = EmbeddingService::new(10);
+        let provider = EmbeddingProvider::Simple { dimension: 10 };
+        let service = EmbeddingService::new(provider);
         let embedding = service.embed("Hello, world!").await.unwrap();
 
         assert_eq!(embedding.len(), 10);
@@ -178,7 +299,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_embed_empty_text() {
-        let service = EmbeddingService::new(5);
+        let provider = EmbeddingProvider::Simple { dimension: 5 };
+        let service = EmbeddingService::new(provider);
         let embedding = service.embed("").await.unwrap();
 
         assert_eq!(embedding.len(), 5);
@@ -187,7 +309,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_embed_batch() {
-        let service = EmbeddingService::new(3);
+        let provider = EmbeddingProvider::Simple { dimension: 3 };
+        let service = EmbeddingService::new(provider);
         let texts = vec!["First text".to_string(), "Second text".to_string()];
 
         let embeddings = service.embed_batch(&texts).await.unwrap();
