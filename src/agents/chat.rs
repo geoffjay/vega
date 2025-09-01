@@ -53,9 +53,13 @@ impl ChatAgent {
         &self.config
     }
 
-    /// Get the system prompt for the agent
-    fn get_system_prompt(&self) -> String {
-        r#"You are a helpful AI assistant with access to various tools that can help you perform tasks and answer questions more effectively.
+    /// Get the rendered system prompt for the agent
+    fn get_system_prompt(&self) -> Result<String> {
+        let rendered_prompt = self.render_system_prompt()?;
+
+        if rendered_prompt.is_empty() {
+            // Fallback to default tool-enabled prompt if no custom system prompt is set
+            Ok(r#"You are a helpful AI assistant with access to various tools that can help you perform tasks and answer questions more effectively.
 
 Available tools:
 - web_search: Search the web for current information
@@ -73,7 +77,10 @@ Guidelines for tool usage:
 5. Use code_search to understand codebases before making changes
 6. Provide clear explanations of tool results
 
-Respond in a conversational and helpful manner, using tools as needed to provide the best possible assistance."#.to_string()
+Respond in a conversational and helpful manner, using tools as needed to provide the best possible assistance."#.to_string())
+        } else {
+            Ok(rendered_prompt)
+        }
     }
 
     /// Get a response from the AI using Rig with tools and context
@@ -156,9 +163,10 @@ Respond in a conversational and helpful manner, using tools as needed to provide
         match self.config.provider.as_str() {
             "openai" => {
                 let client = providers::openai::Client::from_env();
+                let system_prompt = self.get_system_prompt()?;
                 let agent = client
                     .agent(&self.config.model)
-                    .preamble(&self.get_system_prompt())
+                    .preamble(&system_prompt)
                     .max_tokens(2048)
                     .tool(WebSearchTool::new())
                     .tool(BashTool::new())
@@ -175,9 +183,10 @@ Respond in a conversational and helpful manner, using tools as needed to provide
             }
             "openrouter" => {
                 let client = providers::openrouter::Client::from_env();
+                let system_prompt = self.get_system_prompt()?;
                 let agent = client
                     .agent(&self.config.model)
-                    .preamble(&self.get_system_prompt())
+                    .preamble(&system_prompt)
                     .max_tokens(2048)
                     .tool(WebSearchTool::new())
                     .tool(BashTool::new())
@@ -194,9 +203,10 @@ Respond in a conversational and helpful manner, using tools as needed to provide
             }
             "ollama" => {
                 let client = providers::ollama::Client::new();
+                let system_prompt = self.get_system_prompt()?;
                 let agent = client
                     .agent(&self.config.model)
-                    .preamble(&self.get_system_prompt())
+                    .preamble(&system_prompt)
                     .max_tokens(2048)
                     .tool(WebSearchTool::new())
                     .tool(BashTool::new())
@@ -631,6 +641,18 @@ impl Agent for ChatAgent {
     fn greeting(&self) -> &'static str {
         "I'm your AI assistant with access to various tools. I can search the web, work with files, execute commands, and more. How can I help you today?"
     }
+
+    fn system_prompt(&self) -> &str {
+        r#"The assistant is Ally.
+
+The current date is {{currentDateTime}}.
+
+Ally enjoys helping humans and sees its role as an intelligent and kind assistant to the people, with depth and wisdom that makes it more than a mere tool.
+
+Ally always responds to the person in the language they use or request. If the person messages Ally in French then Ally responds in French, if the person messages Ally in Icelandic then Ally responds in Icelandic, and so on for any language. Ally is fluent in a wide variety of world languages.
+
+Ally is now being connected with a person."#
+    }
 }
 
 #[cfg(test)]
@@ -709,5 +731,32 @@ mod tests {
 
         assert_eq!(agent.config().provider, original_provider);
         assert_eq!(agent.config().model, original_model);
+    }
+
+    #[test]
+    fn test_chat_agent_system_prompt() {
+        let config = create_test_config("ollama", "llama3.2", None);
+        let agent = ChatAgent::new(config).unwrap();
+
+        // Test that the system prompt is not empty
+        let system_prompt = agent.system_prompt();
+        assert!(!system_prompt.is_empty());
+        assert!(system_prompt.contains("Ally"));
+        assert!(system_prompt.contains("{{currentDateTime}}"));
+    }
+
+    #[test]
+    fn test_chat_agent_rendered_system_prompt() {
+        let config = create_test_config("ollama", "llama3.2", None);
+        let agent = ChatAgent::new(config).unwrap();
+
+        // Test that the system prompt renders correctly
+        let rendered_prompt = agent.render_system_prompt().unwrap();
+        assert!(!rendered_prompt.is_empty());
+        assert!(rendered_prompt.contains("Ally"));
+        // Should not contain template variables after rendering
+        assert!(!rendered_prompt.contains("{{currentDateTime}}"));
+        // Should contain actual date/time
+        assert!(rendered_prompt.contains("UTC"));
     }
 }

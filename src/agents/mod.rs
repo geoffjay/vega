@@ -1,5 +1,9 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use chrono::Utc;
+use minijinja::{Environment, UndefinedBehavior};
+use std::collections::HashMap;
+use std::env;
 
 pub mod chat;
 
@@ -18,6 +22,21 @@ pub trait Agent {
 
     /// Get the initial greeting question for this agent
     fn greeting(&self) -> &'static str;
+
+    /// Get the system prompt for this agent (defaults to empty string)
+    fn system_prompt(&self) -> &str {
+        ""
+    }
+
+    /// Render the system prompt with template variables
+    fn render_system_prompt(&self) -> Result<String> {
+        let template = self.system_prompt();
+        if template.is_empty() {
+            return Ok(String::new());
+        }
+
+        render_prompt_template(template)
+    }
 }
 
 /// Common configuration shared across agents
@@ -50,6 +69,42 @@ impl AgentConfig {
             embedding_provider,
             embedding_model,
             openai_api_key,
+        }
+    }
+}
+
+/// Render a prompt template with supported variables
+pub fn render_prompt_template(template: &str) -> Result<String> {
+    let mut env = Environment::new();
+    env.set_undefined_behavior(UndefinedBehavior::Strict);
+
+    // Create context with supported variables
+    let mut context = HashMap::new();
+
+    // Add currentDateTime variable
+    let current_time = Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string();
+    context.insert("currentDateTime", current_time);
+
+    // Add currentWorkingDirectory variable
+    let current_dir = env::current_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| "unknown".to_string());
+    context.insert("currentWorkingDirectory", current_dir);
+
+    // Try to render the template
+    match env.render_str(template, &context) {
+        Ok(rendered) => Ok(rendered),
+        Err(e) => {
+            let error_msg = e.to_string();
+
+            // Check if it's an undefined variable error
+            if error_msg.contains("undefined value") {
+                Err(anyhow::anyhow!(
+                    "Unknown template variable. Supported variables are: currentDateTime, currentWorkingDirectory"
+                ))
+            } else {
+                Err(anyhow::anyhow!("Template rendering error: {}", e))
+            }
         }
     }
 }
@@ -123,5 +178,60 @@ mod tests {
         assert_eq!(config.embedding_provider, cloned_config.embedding_provider);
         assert_eq!(config.embedding_model, cloned_config.embedding_model);
         assert_eq!(config.openai_api_key, cloned_config.openai_api_key);
+    }
+
+    #[test]
+    fn test_render_prompt_template_empty() {
+        let result = render_prompt_template("");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "");
+    }
+
+    #[test]
+    fn test_render_prompt_template_no_variables() {
+        let template = "Hello, this is a simple template without variables.";
+        let result = render_prompt_template(template);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), template);
+    }
+
+    #[test]
+    fn test_render_prompt_template_with_current_datetime() {
+        let template = "The current date and time is {{currentDateTime}}.";
+        let result = render_prompt_template(template);
+        assert!(result.is_ok());
+        let rendered = result.unwrap();
+        assert!(rendered.starts_with("The current date and time is "));
+        assert!(rendered.contains("UTC"));
+    }
+
+    #[test]
+    fn test_render_prompt_template_with_current_working_directory() {
+        let template = "Current working directory: {{currentWorkingDirectory}}";
+        let result = render_prompt_template(template);
+        assert!(result.is_ok());
+        let rendered = result.unwrap();
+        assert!(rendered.starts_with("Current working directory: "));
+    }
+
+    #[test]
+    fn test_render_prompt_template_unknown_variable() {
+        let template = "Hello {{unknownVariable}}!";
+        let result = render_prompt_template(template);
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("Unknown template variable"));
+        assert!(error_msg.contains("currentDateTime, currentWorkingDirectory"));
+    }
+
+    #[test]
+    fn test_render_prompt_template_multiple_variables() {
+        let template = "Time: {{currentDateTime}}, Directory: {{currentWorkingDirectory}}";
+        let result = render_prompt_template(template);
+        assert!(result.is_ok());
+        let rendered = result.unwrap();
+        assert!(rendered.contains("Time: "));
+        assert!(rendered.contains("Directory: "));
+        assert!(rendered.contains("UTC"));
     }
 }
