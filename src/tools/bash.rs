@@ -12,8 +12,16 @@ pub struct BashArgs {
     pub command: String,
     #[serde(default = "default_timeout")]
     pub timeout_seconds: u64,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_optional_string")]
     pub working_directory: Option<String>,
+}
+
+fn deserialize_optional_string<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    let s: Option<String> = Option::deserialize(deserializer)?;
+    Ok(s.filter(|s| !s.is_empty()))
 }
 
 fn default_timeout() -> u64 {
@@ -68,14 +76,17 @@ impl BashTool {
             cmd.args(["/C", &args.command]);
             cmd
         } else {
-            let mut cmd = Command::new("sh");
+            // Use /bin/sh as the full path to ensure it's found
+            let mut cmd = Command::new("/bin/sh");
             cmd.args(["-c", &args.command]);
             cmd
         };
 
-        // Set working directory if provided
+        // Set working directory if provided and not empty
         if let Some(ref dir) = args.working_directory {
-            cmd.current_dir(dir);
+            if !dir.is_empty() {
+                cmd.current_dir(dir);
+            }
         }
 
         // Execute the command
