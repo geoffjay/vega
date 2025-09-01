@@ -90,13 +90,12 @@ impl EditFileTool {
         let (final_content, lines_modified) = if let Some((start_line, end_line)) = args.line_range
         {
             // Partial edit: replace specific lines
-            if !file_exists {
-                return Err(ToolError::InvalidInput(
-                    "Cannot perform line range edit on non-existent file".to_string(),
-                ));
-            }
-
-            let lines: Vec<&str> = original_content.lines().collect();
+            // For non-existent files, treat as empty file (0 lines)
+            let lines: Vec<&str> = if file_exists {
+                original_content.lines().collect()
+            } else {
+                Vec::new()
+            };
             let total_lines = lines.len();
 
             if start_line == 0 || start_line > total_lines + 1 {
@@ -383,6 +382,34 @@ mod tests {
         assert!(tool.validate_path("./test.txt").is_ok());
         assert!(tool.validate_path("src/main.rs").is_ok());
         assert!(tool.validate_path("/tmp/test.txt").is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_line_range_edit_on_new_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("new_file.txt");
+
+        let tool = EditFileTool::new();
+        let args = EditFileArgs {
+            path: file_path.to_string_lossy().to_string(),
+            content: "Line 1\nLine 2".to_string(),
+            create_if_missing: true,
+            backup: false,
+            encoding: None,
+            line_range: Some((1, 1)), // Insert at line 1 of empty file
+        };
+
+        let result = tool.call(args).await;
+        assert!(result.is_ok());
+
+        let output = result.unwrap();
+        assert!(output.success);
+        assert!(output.created_new_file);
+        assert_eq!(output.lines_modified, Some((1, 2)));
+
+        // Verify content
+        let content = fs::read_to_string(&file_path).await.unwrap();
+        assert_eq!(content, "Line 1\nLine 2");
     }
 
     #[tokio::test]
