@@ -124,10 +124,20 @@ impl EmbeddingService {
                     _ => 1536, // Default fallback
                 }
             }
-            EmbeddingProvider::Ollama { .. } => {
-                // Most Ollama embedding models use 384 or 768 dimensions
-                // This should ideally be queried from the model, but for now we'll use a common default
-                384
+            EmbeddingProvider::Ollama { client: _, model } => {
+                // Return dimensions based on the specific Ollama model
+                // Common Ollama embedding models and their dimensions:
+                match model.as_str() {
+                    "nomic-embed-text" => 768,
+                    "all-minilm" => 384,
+                    "mxbai-embed-large" => 1024,
+                    _ => {
+                        // For unknown models, default to 768 as it's more common for newer models
+                        // Users can extend this match statement for other models
+                        // Note: If you change dimensions, you may need to delete existing context databases
+                        768
+                    }
+                }
             }
         }
     }
@@ -350,5 +360,40 @@ mod tests {
             }
             _ => panic!("Default should be Simple provider"),
         }
+    }
+
+    #[test]
+    fn test_ollama_embedding_dimensions() {
+        // Test nomic-embed-text model returns 768 dimensions
+        let provider = EmbeddingProvider::Ollama {
+            client: rig::providers::ollama::Client::new(),
+            model: "nomic-embed-text".to_string(),
+        };
+        let service = EmbeddingService::new(provider);
+        assert_eq!(service.dimension(), 768);
+
+        // Test all-minilm model returns 384 dimensions
+        let provider = EmbeddingProvider::Ollama {
+            client: rig::providers::ollama::Client::new(),
+            model: "all-minilm".to_string(),
+        };
+        let service = EmbeddingService::new(provider);
+        assert_eq!(service.dimension(), 384);
+
+        // Test mxbai-embed-large model returns 1024 dimensions
+        let provider = EmbeddingProvider::Ollama {
+            client: rig::providers::ollama::Client::new(),
+            model: "mxbai-embed-large".to_string(),
+        };
+        let service = EmbeddingService::new(provider);
+        assert_eq!(service.dimension(), 1024);
+
+        // Test unknown model defaults to 768 dimensions
+        let provider = EmbeddingProvider::Ollama {
+            client: rig::providers::ollama::Client::new(),
+            model: "unknown-model".to_string(),
+        };
+        let service = EmbeddingService::new(provider);
+        assert_eq!(service.dimension(), 768);
     }
 }
