@@ -9,6 +9,9 @@ An AI chat agent built with Rust using the [Rig framework](https://github.com/0x
 - 💬 **Interactive Chat**: Command-line chat interface with colored output
 - 🔧 **Configurable**: Flexible configuration via command-line arguments
 - 📝 **Logging**: Optional verbose logging for debugging
+- 🔗 **Agent Client Protocol (ACP)**: Compatible with ACP-enabled editors like Zed
+- 🧠 **Context Awareness**: Persistent conversation history with embedding-based retrieval
+- 🛠️ **Tool Support**: File operations, web search, code analysis, and more
 
 ## Prerequisites
 
@@ -76,6 +79,23 @@ cargo run -- --model "llama2"
 cargo run -- --provider openrouter --model "openai/gpt-4"
 ```
 
+### Agent Client Protocol (ACP) Mode
+
+Ally supports the Agent Client Protocol, allowing it to be used as an AI coding agent in compatible editors like Zed:
+
+```bash
+# Run Ally in ACP mode
+ally --acp
+
+# ACP mode with specific provider and model
+ally --acp --provider openrouter --model openai/gpt-4 --openrouter-api-key YOUR_KEY
+
+# ACP mode with Ollama
+ally --acp --provider ollama --model llama3.2
+```
+
+For detailed ACP integration information, see [ACP_INTEGRATION.md](ACP_INTEGRATION.md).
+
 ### Full Command Reference
 
 ```
@@ -87,6 +107,7 @@ Options:
   -m, --model <MODEL>                  Model name to use [default: llama3.2]
       --openrouter-api-key <API_KEY>   OpenRouter API key (required if using openrouter provider)
                                        Can also be set via OPENROUTER_API_KEY environment variable
+      --acp                            Run in Agent Client Protocol (ACP) mode for editor integration
   -h, --help                           Print help
   -V, --version                        Print version
 ```

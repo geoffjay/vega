@@ -27,11 +27,12 @@ chrono = { version = "0.4", features = ["serde"] }
 axum = "0.7"
 tower = "0.5"
 tower-http = { version = "0.6", features = ["cors", "fs"] }
-tokio-util = { version = "0.7", features = ["io"] }
+tokio-util = { version = "0.7", features = ["io", "compat"] }
 reqwest = { version = "0.12", features = ["json"] }
 thiserror = "1.0"
 urlencoding = "2.1"
 minijinja = "2.0"
+agent-client-protocol = "0.1"
 
 [dev-dependencies]
 tokio-test = "0.4"

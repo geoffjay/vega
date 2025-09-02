@@ -5,6 +5,7 @@ use std::path::PathBuf;
 // Main module - uses custom logger for all output
 use uuid::Uuid;
 
+pub mod acp;
 pub mod agent_instructions;
 pub mod agents;
 pub mod context;
@@ -108,6 +109,10 @@ struct Args {
     /// Can also be set via ALLY_LOG_STRUCTURED environment variable
     #[arg(long, env = "ALLY_LOG_STRUCTURED")]
     log_structured: bool,
+
+    /// Run in Agent Client Protocol (ACP) mode for editor integration
+    #[arg(long)]
+    acp: bool,
 }
 
 impl Args {
@@ -154,6 +159,10 @@ impl Args {
             } else {
                 "disabled"
             }
+        );
+        println!(
+            "  • ACP mode: {}",
+            if self.acp { "enabled" } else { "disabled" }
         );
 
         // Display API key status (without revealing the actual keys)
@@ -361,6 +370,16 @@ async fn main() -> Result<()> {
         config = config.with_instructions(instructions);
     }
 
+    // Check if running in ACP mode
+    if args.acp {
+        ally_logger
+            .info("Starting Ally in Agent Client Protocol (ACP) mode".to_string())
+            .await?;
+
+        // Run the ACP server
+        return crate::acp::start_acp_server(config, context_arc, ally_logger).await;
+    }
+
     // Start web server in background
     let web_context = context_arc.clone();
     let web_logger = ally_logger.clone();
@@ -510,6 +529,7 @@ mod tests {
             log_output: "console".to_string(),
             log_file: None,
             log_structured: false,
+            acp: false,
         };
 
         let config = AgentConfig::new(
