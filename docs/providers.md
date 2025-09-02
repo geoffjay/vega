@@ -86,7 +86,77 @@ ollama show llama3.1
 - **70B models**: 64GB+ RAM required
 - **GPU acceleration**: NVIDIA/AMD GPUs supported for faster inference
 
-### 2. OpenRouter (Cloud Models)
+### 2. Anthropic (Direct Claude Access)
+
+**Purpose**: Direct access to Claude models through the official Anthropic API for optimal performance and latest features.
+
+**Key Features**:
+
+- Direct access to latest Claude models (3.5 Sonnet, 4.0, etc.)
+- Optimal performance and reliability from the source
+- Access to newest features and model updates first
+- Competitive pricing for Claude models
+- High rate limits for production use
+
+**Requirements**:
+
+- Anthropic API key from [console.anthropic.com](https://console.anthropic.com/)
+- Internet connection
+- API credits/billing setup
+
+**Configuration**:
+
+```bash
+# Set API key via environment variable (recommended)
+export ANTHROPIC_API_KEY="your-api-key-here"
+cargo run -- --provider anthropic --model "claude-3-5-sonnet-20241022"
+
+# Or pass API key directly
+cargo run -- --provider anthropic --model "claude-3-5-sonnet-20241022" --anthropic-api-key "your-key"
+```
+
+**Environment Variables**:
+
+- `ANTHROPIC_API_KEY`: Your Anthropic API key
+
+#### Recommended Anthropic Models
+
+**🔥 Top Tier (Latest & Best)**:
+
+- **`claude-3-5-sonnet-20241022`** - Latest Claude 3.5 Sonnet with improved capabilities
+- **`claude-3-5-haiku-20241022`** - Fast and efficient for lighter tasks
+- **`claude-3-opus-20240229`** - Most capable model for complex reasoning
+
+**📋 Good Options**:
+
+- **`claude-3-sonnet-20240229`** - Balanced performance and cost
+- **`claude-3-haiku-20240307`** - Cost-effective for simple tasks
+
+**Usage Examples**:
+
+```bash
+# Basic usage with environment variable
+export ANTHROPIC_API_KEY="your-api-key-here"
+cargo run -- --provider anthropic --model claude-3-5-sonnet-20241022
+
+# Direct API key (not recommended for production)
+cargo run -- --provider anthropic --model claude-3-5-sonnet-20241022 --anthropic-api-key "your-key"
+
+# For complex code analysis
+cargo run -- --provider anthropic --model claude-3-opus-20240229
+
+# For fast responses
+cargo run -- --provider anthropic --model claude-3-haiku-20240307
+```
+
+**Cost Considerations**:
+
+- Claude 3.5 Sonnet: Best balance of performance and cost
+- Claude 3 Opus: Higher cost, maximum capability
+- Claude 3 Haiku: Most cost-effective for simple tasks
+- Check current pricing at [console.anthropic.com](https://console.anthropic.com/)
+
+### 3. OpenRouter (Cloud Models)
 
 **Purpose**: Access to a wide variety of state-of-the-art models from different providers through a single API.
 
@@ -170,15 +240,16 @@ For context awareness and semantic search, Ally supports multiple embedding prov
 
 ## Provider Comparison
 
-| Feature              | Ollama                 | OpenRouter            |
-| -------------------- | ---------------------- | --------------------- |
-| **Privacy**          | ✅ Complete            | ❌ Data sent to cloud |
-| **Cost**             | ✅ Free after setup    | 💰 Pay per use        |
-| **Performance**      | 🔄 Depends on hardware | ✅ Consistently high  |
-| **Offline Usage**    | ✅ Yes                 | ❌ Requires internet  |
-| **Model Variety**    | 📊 Growing selection   | ✅ Extensive catalog  |
-| **Setup Complexity** | 🔧 Moderate            | ✅ Simple             |
-| **Resource Usage**   | 💻 High local usage    | ✅ Minimal local      |
+| Feature              | Ollama                 | Anthropic             | OpenRouter            |
+| -------------------- | ---------------------- | --------------------- | --------------------- |
+| **Privacy**          | ✅ Complete            | ❌ Data sent to cloud | ❌ Data sent to cloud |
+| **Cost**             | ✅ Free after setup    | 💰 Pay per use        | 💰 Pay per use        |
+| **Performance**      | 🔄 Depends on hardware | ✅ Consistently high  | ✅ Consistently high  |
+| **Offline Usage**    | ✅ Yes                 | ❌ Requires internet  | ❌ Requires internet  |
+| **Model Variety**    | 📊 Growing selection   | 🎯 Claude models only | ✅ Extensive catalog  |
+| **Setup Complexity** | 🔧 Moderate            | ✅ Simple             | ✅ Simple             |
+| **Resource Usage**   | 💻 High local usage    | ✅ Minimal local      | ✅ Minimal local      |
+| **Latest Features**  | 🔄 Community updates   | ✅ First access       | 🔄 Provider dependent |
 
 ## Configuration Guide
 
@@ -188,12 +259,15 @@ For context awareness and semantic search, Ally supports multiple embedding prov
 # Ollama (local)
 cargo run -- --provider ollama --model llama3.1
 
+# Anthropic (cloud)
+cargo run -- --provider anthropic --model "claude-3-5-sonnet-20241022" --anthropic-api-key "key"
+
 # OpenRouter (cloud)
 cargo run -- --provider openrouter --model "openai/gpt-4" --openrouter-api-key "key"
 
-# With additional options
-cargo run -- --provider openrouter \
-              --model "anthropic/claude-3-sonnet" \
+# With additional options (Anthropic example)
+cargo run -- --provider anthropic \
+              --model "claude-3-5-sonnet-20241022" \
               --max-tokens 4000 \
               --verbose
 ```
@@ -202,10 +276,11 @@ cargo run -- --provider openrouter \
 
 ```bash
 # Provider configuration
-export ALLY_PROVIDER="openrouter"
-export ALLY_MODEL="openai/gpt-4"
+export ALLY_PROVIDER="anthropic"
+export ALLY_MODEL="claude-3-5-sonnet-20241022"
 
 # API keys
+export ANTHROPIC_API_KEY="your-anthropic-key"
 export OPENROUTER_API_KEY="your-openrouter-key"
 export OPENAI_API_KEY="your-openai-key"  # For embeddings
 
@@ -224,9 +299,9 @@ While not currently implemented, future versions may support configuration files
 ```toml
 # ally.toml (planned)
 [provider]
-name = "openrouter"
-model = "openai/gpt-4"
-api_key_env = "OPENROUTER_API_KEY"
+name = "anthropic"
+model = "claude-3-5-sonnet-20241022"
+api_key_env = "ANTHROPIC_API_KEY"
 
 [embeddings]
 provider = "openai"
@@ -241,21 +316,21 @@ timeout_seconds = 30
 
 ### For Code Development
 
-1. **Best**: `openai/gpt-4` or `anthropic/claude-3-opus`
+1. **Best**: `claude-3-5-sonnet-20241022` or `claude-3-opus-20240229`
 2. **Good**: `llama3.1` (70B) or `codellama`
-3. **Budget**: `openai/gpt-3.5-turbo` or `llama3.2`
+3. **Budget**: `claude-3-haiku-20240307` or `llama3.2`
 
 ### For General Chat
 
-1. **Best**: `anthropic/claude-3-sonnet` or `openai/gpt-4-turbo`
+1. **Best**: `claude-3-5-sonnet-20241022` or `claude-3-sonnet-20240229`
 2. **Good**: `llama3.1` (8B) or `mistral`
-3. **Budget**: `anthropic/claude-3-haiku` or `llama3.2`
+3. **Budget**: `claude-3-haiku-20240307` or `llama3.2`
 
 ### For Analysis and Research
 
-1. **Best**: `anthropic/claude-3-opus` or `openai/gpt-4`
-2. **Good**: `llama3.1` (405B) or `mistralai/mistral-large`
-3. **Budget**: `openai/gpt-4-turbo` or `llama3.1` (8B)
+1. **Best**: `claude-3-opus-20240229` or `claude-3-5-sonnet-20241022`
+2. **Good**: `llama3.1` (405B) or `claude-3-sonnet-20240229`
+3. **Budget**: `claude-3-haiku-20240307` or `llama3.1` (8B)
 
 ### For Privacy-Sensitive Work
 
@@ -324,6 +399,32 @@ export OPENROUTER_CACHE_ENABLED=true
    # Or increase system memory/swap
    ```
 
+### Common Anthropic Issues
+
+1. **"Invalid API key"**:
+
+   ```bash
+   # Check API key format
+   echo $ANTHROPIC_API_KEY
+
+   # Verify at console.anthropic.com
+   ```
+
+2. **"Model not available"**:
+
+   ```bash
+   # Check model name format (use exact model names)
+   cargo run -- --provider anthropic --model "claude-3-5-sonnet-20241022"
+
+   # List available models at docs.anthropic.com
+   ```
+
+3. **Rate limiting**:
+   ```bash
+   # Check your usage limits at console.anthropic.com
+   # Anthropic has generous rate limits for most use cases
+   ```
+
 ### Common OpenRouter Issues
 
 1. **"Invalid API key"**:
@@ -354,7 +455,7 @@ export OPENROUTER_CACHE_ENABLED=true
 
 ```bash
 # Test provider connection
-cargo run -- --provider ollama --model llama3.1 --verbose
+cargo run -- --provider anthropic --model claude-3-5-sonnet-20241022 --verbose
 
 # Check model recommendations
 cargo run -- --help-models
@@ -381,9 +482,10 @@ cargo run -- --dry-run
 ### Best Practices
 
 1. **Start with Ollama** for privacy-sensitive projects
-2. **Use OpenRouter** for production applications requiring reliability
-3. **Monitor costs** when using cloud providers
-4. **Keep models updated** for security patches
-5. **Use appropriate model sizes** for your hardware capabilities
+2. **Use Anthropic** for best Claude model performance and latest features
+3. **Use OpenRouter** for access to multiple model providers
+4. **Monitor costs** when using cloud providers
+5. **Keep models updated** for security patches
+6. **Use appropriate model sizes** for your hardware capabilities
 
 This provider system gives you the flexibility to choose the right balance of performance, privacy, cost, and convenience for your specific use case.

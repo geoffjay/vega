@@ -42,6 +42,7 @@ use logging::{AllyLogger, LogLevel, LoggerConfig};
                   - ALLY_LOG_LEVEL: Set log level (error, warn, info, debug, trace)\n\
                   - ALLY_COMMAND_HISTORY_LENGTH: Set command history length (default: 100)\n\
                   - OPENROUTER_API_KEY: Set the OpenRouter API key\n\
+                  - ANTHROPIC_API_KEY: Set the Anthropic API key\n\
                   - OPENAI_API_KEY: Set the OpenAI API key for embeddings"
 )]
 struct Args {
@@ -63,6 +64,11 @@ struct Args {
     /// Can also be set via OPENROUTER_API_KEY environment variable
     #[arg(long, env)]
     openrouter_api_key: Option<String>,
+
+    /// Anthropic API key (required if using anthropic provider)
+    /// Can also be set via ANTHROPIC_API_KEY environment variable
+    #[arg(long, env)]
+    anthropic_api_key: Option<String>,
 
     /// Embedding provider to use (openai, ollama, or simple)
     /// Can also be set via ALLY_EMBEDDING_PROVIDER environment variable
@@ -183,6 +189,12 @@ impl Args {
             println!("  • OpenRouter API key: ✗ not set");
         }
 
+        if self.anthropic_api_key.is_some() {
+            println!("  • Anthropic API key: ✓ configured");
+        } else {
+            println!("  • Anthropic API key: ✗ not set");
+        }
+
         if self.openai_api_key.is_some() {
             println!("  • OpenAI API key: ✓ configured");
         } else {
@@ -206,6 +218,7 @@ impl Args {
             ("ALLY_LOG_LEVEL", "Log level"),
             ("ALLY_COMMAND_HISTORY_LENGTH", "Command history length"),
             ("OPENROUTER_API_KEY", "OpenRouter API key"),
+            ("ANTHROPIC_API_KEY", "Anthropic API key"),
             ("OPENAI_API_KEY", "OpenAI API key"),
         ];
 
@@ -366,11 +379,17 @@ async fn main() -> Result<()> {
     };
 
     // Create agent configuration
+    let api_key = match args.provider.as_str() {
+        "openrouter" => args.openrouter_api_key,
+        "anthropic" => args.anthropic_api_key,
+        _ => None,
+    };
+
     let mut config = AgentConfig::new(
         args.verbose,
         args.provider,
         args.model,
-        args.openrouter_api_key,
+        api_key,
         args.embedding_provider,
         args.embedding_model,
         args.openai_api_key,
@@ -505,6 +524,12 @@ mod tests {
     }
 
     #[test]
+    fn test_anthropic_api_key() {
+        let args = Args::try_parse_from(&["ally", "--anthropic-api-key", "test-key"]).unwrap();
+        assert_eq!(args.anthropic_api_key, Some("test-key".to_string()));
+    }
+
+    #[test]
     fn test_combined_args() {
         let args = Args::try_parse_from(&[
             "ally",
@@ -531,6 +556,7 @@ mod tests {
             provider: "ollama".to_string(),
             model: "llama3.2".to_string(),
             openrouter_api_key: None,
+            anthropic_api_key: None,
             embedding_provider: "simple".to_string(),
             embedding_model: None,
             openai_api_key: None,

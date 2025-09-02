@@ -156,7 +156,9 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                         "⚠️  Note: The current model doesn't support tools. Consider using a tool-compatible model like:"
                     );
                     println!("   - OpenAI: gpt-4, gpt-4-turbo, gpt-3.5-turbo");
-                    println!("   - Anthropic: claude-3-opus, claude-3-sonnet, claude-3-haiku");
+                    println!(
+                        "   - Anthropic: claude-3-5-sonnet-20241022, claude-3-opus-20240229, claude-3-haiku-20240307"
+                    );
                     println!("   - Or use Ollama with a compatible model");
                     println!();
 
@@ -204,6 +206,31 @@ Respond in a conversational and helpful manner, using tools as needed to provide
             }
             "openrouter" => {
                 let client = providers::openrouter::Client::from_env();
+                let system_prompt = self.get_system_prompt()?;
+                let agent = client
+                    .agent(&self.config.model)
+                    .preamble(&system_prompt)
+                    .max_tokens(2048)
+                    .tool(WebSearchTool::new())
+                    .tool(ConfirmedBashTool::new(self.config.yolo))
+                    .tool(CodeSearchTool::new())
+                    .tool(ReadFileTool::new())
+                    .tool(ConfirmedEditFileTool::new(self.config.yolo))
+                    .tool(ListFilesTool::new())
+                    .tool(if let Some(ref logger) = self.logger {
+                        ReadLogsTool::new().with_logger(logger.clone())
+                    } else {
+                        ReadLogsTool::new()
+                    })
+                    .build();
+
+                agent
+                    .prompt(full_prompt)
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))
+            }
+            "anthropic" => {
+                let client = providers::anthropic::Client::from_env();
                 let system_prompt = self.get_system_prompt()?;
                 let agent = client
                     .agent(&self.config.model)
@@ -279,6 +306,19 @@ Respond in a conversational and helpful manner, using tools as needed to provide
             }
             "openrouter" => {
                 let client = providers::openrouter::Client::from_env();
+                let agent = client
+                    .agent(&self.config.model)
+                    .preamble(simple_preamble)
+                    .max_tokens(2048)
+                    .build();
+
+                agent
+                    .prompt(full_prompt)
+                    .await
+                    .map_err(|e| anyhow::anyhow!(e))
+            }
+            "anthropic" => {
+                let client = providers::anthropic::Client::from_env();
                 let agent = client
                     .agent(&self.config.model)
                     .preamble(simple_preamble)
@@ -536,7 +576,7 @@ Respond in a conversational and helpful manner, using tools as needed to provide
             }
             _ => {
                 println!("❓ Unknown provider: {}", self.config.provider);
-                println!("   Supported providers: openai, openrouter, ollama");
+                println!("   Supported providers: openai, openrouter, anthropic, ollama");
             }
         }
 

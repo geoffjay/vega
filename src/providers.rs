@@ -7,6 +7,7 @@
 //!
 //! - **Ollama**: Local model execution with privacy and no API costs
 //! - **OpenRouter**: Cloud-based access to multiple model providers
+//! - **Anthropic**: Direct access to Claude models via Anthropic API
 //!
 //! ## Example Usage
 //!
@@ -20,6 +21,9 @@
 //!     
 //!     // Cloud OpenRouter provider
 //!     let openrouter = LLMProvider::new("openrouter", "openai/gpt-4", Some("api-key"))?;
+//!     
+//!     // Anthropic provider
+//!     let anthropic = LLMProvider::new("anthropic", "claude-3-5-sonnet-20241022", Some("api-key"))?;
 //!     
 //!     // Send a prompt
 //!     let response = ollama.prompt(
@@ -40,7 +44,7 @@ use std::fmt;
 /// Enumeration of supported Large Language Model providers.
 ///
 /// This enum abstracts over different LLM providers, allowing the application
-/// to work with both local (Ollama) and cloud-based (OpenRouter) models
+/// to work with both local (Ollama) and cloud-based (OpenRouter, Anthropic) models
 /// through a unified interface.
 #[derive(Clone)]
 pub enum LLMProvider {
@@ -64,6 +68,16 @@ pub enum LLMProvider {
         /// The model name (e.g., "openai/gpt-4", "anthropic/claude-3-sonnet")
         model: String,
     },
+    /// Anthropic provider for direct Claude model access.
+    ///
+    /// Provides direct access to Claude models through the Anthropic API.
+    /// Offers the latest Claude models with optimal performance.
+    Anthropic {
+        /// The Anthropic client instance
+        client: providers::anthropic::Client,
+        /// The model name (e.g., "claude-3-5-sonnet-20241022", "claude-3-haiku-20240307")
+        model: String,
+    },
 }
 
 impl LLMProvider {
@@ -71,9 +85,9 @@ impl LLMProvider {
     ///
     /// # Arguments
     ///
-    /// * `provider_name` - The name of the provider ("ollama" or "openrouter")
+    /// * `provider_name` - The name of the provider ("ollama", "openrouter", or "anthropic")
     /// * `model` - The model name to use
-    /// * `api_key` - Optional API key (required for OpenRouter, ignored for Ollama)
+    /// * `api_key` - Optional API key (required for OpenRouter and Anthropic, ignored for Ollama)
     ///
     /// # Returns
     ///
@@ -83,7 +97,7 @@ impl LLMProvider {
     ///
     /// Returns an error if:
     /// - The provider name is not supported
-    /// - OpenRouter is specified but no API key is provided
+    /// - OpenRouter or Anthropic is specified but no API key is provided
     /// - The provider client cannot be initialized
     ///
     /// # Examples
@@ -96,6 +110,9 @@ impl LLMProvider {
     ///
     /// // Create OpenRouter provider (API key required)
     /// let openrouter = LLMProvider::new("openrouter", "openai/gpt-4", Some("sk-..."))?;
+    ///
+    /// // Create Anthropic provider (API key required)
+    /// let anthropic = LLMProvider::new("anthropic", "claude-3-5-sonnet-20241022", Some("sk-ant-..."))?;
     /// # Ok::<(), anyhow::Error>(())
     /// ```
     pub fn new(provider_name: &str, model: &str, api_key: Option<&str>) -> Result<Self> {
@@ -118,8 +135,19 @@ impl LLMProvider {
                     model: model.to_string(),
                 })
             }
+            "anthropic" => {
+                let api_key = api_key.ok_or_else(|| {
+                    anyhow::anyhow!("Anthropic API key is required for anthropic provider. Set --anthropic-api-key or ANTHROPIC_API_KEY environment variable.")
+                })?;
+
+                let client = providers::anthropic::Client::new(api_key);
+                Ok(LLMProvider::Anthropic {
+                    client,
+                    model: model.to_string(),
+                })
+            }
             _ => Err(anyhow::anyhow!(
-                "Unsupported provider: {}. Supported providers: ollama, openrouter",
+                "Unsupported provider: {}. Supported providers: ollama, openrouter, anthropic",
                 provider_name
             )),
         }
@@ -144,6 +172,7 @@ impl LLMProvider {
         match self {
             LLMProvider::Ollama { model, .. } => model,
             LLMProvider::OpenRouter { model, .. } => model,
+            LLMProvider::Anthropic { model, .. } => model,
         }
     }
 
@@ -207,6 +236,14 @@ impl LLMProvider {
                     .build();
                 agent.prompt(prompt).await?
             }
+            LLMProvider::Anthropic { client, model } => {
+                let agent = client
+                    .agent(model)
+                    .preamble(preamble)
+                    .max_tokens(max_tokens)
+                    .build();
+                agent.prompt(prompt).await?
+            }
         };
 
         Ok(response)
@@ -222,6 +259,10 @@ impl fmt::Debug for LLMProvider {
                 .finish_non_exhaustive(),
             LLMProvider::OpenRouter { model, .. } => f
                 .debug_struct("OpenRouter")
+                .field("model", model)
+                .finish_non_exhaustive(),
+            LLMProvider::Anthropic { model, .. } => f
+                .debug_struct("Anthropic")
                 .field("model", model)
                 .finish_non_exhaustive(),
         }
@@ -266,6 +307,31 @@ mod tests {
     }
 
     #[test]
+    fn test_anthropic_provider_creation_with_api_key() {
+        let provider = LLMProvider::new(
+            "anthropic",
+            "claude-3-5-sonnet-20241022",
+            Some("test-api-key"),
+        );
+        assert!(provider.is_ok());
+
+        if let Ok(LLMProvider::Anthropic { model, .. }) = provider {
+            assert_eq!(model, "claude-3-5-sonnet-20241022");
+        } else {
+            panic!("Expected Anthropic provider");
+        }
+    }
+
+    #[test]
+    fn test_anthropic_provider_creation_without_api_key() {
+        let provider = LLMProvider::new("anthropic", "claude-3-5-sonnet-20241022", None);
+        assert!(provider.is_err());
+
+        let error = provider.unwrap_err();
+        assert!(error.to_string().contains("Anthropic API key is required"));
+    }
+
+    #[test]
     fn test_unsupported_provider() {
         let provider = LLMProvider::new("unsupported", "model", None);
         assert!(provider.is_err());
@@ -286,5 +352,9 @@ mod tests {
         let openrouter_provider =
             LLMProvider::new("openrouter", "gpt-4", Some("test-key")).unwrap();
         assert_eq!(openrouter_provider.model(), "gpt-4");
+
+        let anthropic_provider =
+            LLMProvider::new("anthropic", "claude-3-5-sonnet-20241022", Some("test-key")).unwrap();
+        assert_eq!(anthropic_provider.model(), "claude-3-5-sonnet-20241022");
     }
 }
