@@ -92,7 +92,7 @@ impl AllyAcpAgent {
     /// Process a prompt using the underlying Ally chat agent
     async fn process_prompt(&self, session_id: &acp::SessionId, prompt: &str) -> Result<()> {
         // Create a chat agent for this session (we don't store them as they're stateless)
-        let chat_agent = ChatAgent::new(self.config.clone())?;
+        let chat_agent = ChatAgent::new(self.config.clone())?.with_logger(self.logger.clone());
 
         // Log the prompt processing
         self.logger

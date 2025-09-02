@@ -14,10 +14,10 @@ use crate::embeddings::{EmbeddingProvider, EmbeddingService};
 use crate::tools::*;
 
 /// Chat agent that provides interactive conversation with an LLM and tool support
-#[derive(Debug)]
 pub struct ChatAgent {
     config: AgentConfig,
     embedding_service: EmbeddingService,
+    logger: Option<std::sync::Arc<crate::logging::AllyLogger>>,
 }
 
 impl ChatAgent {
@@ -46,12 +46,19 @@ impl ChatAgent {
         Ok(ChatAgent {
             config,
             embedding_service,
+            logger: None,
         })
     }
 
     /// Get a reference to the agent's configuration
     pub fn config(&self) -> &AgentConfig {
         &self.config
+    }
+
+    /// Set the logger for this agent
+    pub fn with_logger(mut self, logger: std::sync::Arc<crate::logging::AllyLogger>) -> Self {
+        self.logger = Some(logger);
+        self
     }
 
     /// Get the rendered system prompt for the agent
@@ -182,7 +189,11 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                     .tool(ReadFileTool::new())
                     .tool(ConfirmedEditFileTool::new(self.config.yolo))
                     .tool(ListFilesTool::new())
-                    .tool(ReadLogsTool::new())
+                    .tool(if let Some(ref logger) = self.logger {
+                        ReadLogsTool::new().with_logger(logger.clone())
+                    } else {
+                        ReadLogsTool::new()
+                    })
                     .build();
 
                 agent
@@ -203,7 +214,11 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                     .tool(ReadFileTool::new())
                     .tool(ConfirmedEditFileTool::new(self.config.yolo))
                     .tool(ListFilesTool::new())
-                    .tool(ReadLogsTool::new())
+                    .tool(if let Some(ref logger) = self.logger {
+                        ReadLogsTool::new().with_logger(logger.clone())
+                    } else {
+                        ReadLogsTool::new()
+                    })
                     .build();
 
                 agent
@@ -224,7 +239,11 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                     .tool(ReadFileTool::new())
                     .tool(ConfirmedEditFileTool::new(self.config.yolo))
                     .tool(ListFilesTool::new())
-                    .tool(ReadLogsTool::new())
+                    .tool(if let Some(ref logger) = self.logger {
+                        ReadLogsTool::new().with_logger(logger.clone())
+                    } else {
+                        ReadLogsTool::new()
+                    })
                     .build();
 
                 agent

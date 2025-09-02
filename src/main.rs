@@ -399,7 +399,7 @@ async fn main() -> Result<()> {
         .await?;
 
     // Create the chat agent
-    let agent = ChatAgent::new(config)?;
+    let agent = ChatAgent::new(config)?.with_logger(ally_logger.clone());
 
     // Main session loop to handle session switching
     let mut current_session_id = session_id;

@@ -8,7 +8,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use super::ToolError;
-use crate::logging::{LogEntry, LogLevel};
+use crate::logging::{AllyLogger, LogEntry, LogLevel};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ReadLogsArgs {
@@ -21,11 +21,19 @@ pub struct ReadLogsArgs {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct ReadLogsTool;
+pub struct ReadLogsTool {
+    #[serde(skip)]
+    logger: Option<std::sync::Arc<AllyLogger>>,
+}
 
 impl ReadLogsTool {
     pub fn new() -> Self {
-        Self
+        Self { logger: None }
+    }
+
+    pub fn with_logger(mut self, logger: std::sync::Arc<AllyLogger>) -> Self {
+        self.logger = Some(logger);
+        self
     }
 
     fn get_log_config() -> (String, Option<PathBuf>) {
@@ -72,6 +80,25 @@ impl ReadLogsTool {
         } else {
             Err(ToolError::InvalidInput(
                 "No log file path configured".to_string(),
+            ))
+        }
+    }
+
+    async fn read_logs_from_vector_store(
+        &self,
+        session_id: &str,
+        limit: Option<usize>,
+    ) -> Result<Vec<LogEntry>, ToolError> {
+        if let Some(ref logger) = self.logger {
+            logger
+                .get_session_logs(session_id, limit)
+                .await
+                .map_err(|e| {
+                    ToolError::InvalidInput(format!("Failed to read logs from vector store: {}", e))
+                })
+        } else {
+            Err(ToolError::InvalidInput(
+                "Logger not configured for vector store access".to_string(),
             ))
         }
     }
@@ -153,7 +180,7 @@ impl Tool for ReadLogsTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: Self::NAME.to_string(),
-            description: "Read log messages for a specific session. Reads from log file if file logging is enabled. Note: Vector store reading is not yet implemented in this simplified version.".to_string(),
+            description: "Read log messages for a specific session. Can read from file logs or vector store depending on configuration.".to_string(),
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -186,8 +213,9 @@ impl Tool for ReadLogsTool {
         let log_outputs: Vec<&str> = log_output_type.split(',').collect();
 
         let mut log_entries = if log_outputs.contains(&"vector") {
-            // Vector store reading not implemented in this simplified version
-            return Ok("Vector store log reading is not yet implemented. Please use file logging to read logs.".to_string());
+            // Read from vector store
+            self.read_logs_from_vector_store(&args.session_id, Some(limit))
+                .await?
         } else if log_outputs.contains(&"file") {
             // Read from file
             self.read_logs_from_file(&args.session_id, Some(limit))
