@@ -1,22 +1,103 @@
+//! # LLM Provider Implementations
+//!
+//! This module provides abstractions over different Large Language Model providers,
+//! allowing the Ally agent to work with both local and cloud-based models.
+//!
+//! ## Supported Providers
+//!
+//! - **Ollama**: Local model execution with privacy and no API costs
+//! - **OpenRouter**: Cloud-based access to multiple model providers
+//!
+//! ## Example Usage
+//!
+//! ```rust,no_run
+//! use ally::providers::LLMProvider;
+//!
+//! #[tokio::main]
+//! async fn main() -> anyhow::Result<()> {
+//!     // Local Ollama provider
+//!     let ollama = LLMProvider::new("ollama", "llama3.1", None)?;
+//!     
+//!     // Cloud OpenRouter provider
+//!     let openrouter = LLMProvider::new("openrouter", "openai/gpt-4", Some("api-key"))?;
+//!     
+//!     // Send a prompt
+//!     let response = ollama.prompt(
+//!         "Hello, how are you?",
+//!         "You are a helpful assistant.",
+//!         1000
+//!     ).await?;
+//!     
+//!     println!("Response: {}", response);
+//!     Ok(())
+//! }
+//! ```
+
 use anyhow::Result;
 use rig::{client::CompletionClient, completion::Prompt, providers};
 use std::fmt;
 
-/// Enumeration of supported LLM providers
+/// Enumeration of supported Large Language Model providers.
+///
+/// This enum abstracts over different LLM providers, allowing the application
+/// to work with both local (Ollama) and cloud-based (OpenRouter) models
+/// through a unified interface.
 #[derive(Clone)]
 pub enum LLMProvider {
+    /// Ollama provider for local model execution.
+    ///
+    /// Provides access to locally hosted models through the Ollama service.
+    /// Offers complete privacy as no data leaves the local machine.
     Ollama {
+        /// The Ollama client instance
         client: providers::ollama::Client,
+        /// The model name (e.g., "llama3.1", "codellama")
         model: String,
     },
+    /// OpenRouter provider for cloud-based model access.
+    ///
+    /// Provides access to multiple model providers (OpenAI, Anthropic, etc.)
+    /// through the OpenRouter API service.
     OpenRouter {
+        /// The OpenRouter client instance
         client: providers::openrouter::Client,
+        /// The model name (e.g., "openai/gpt-4", "anthropic/claude-3-sonnet")
         model: String,
     },
 }
 
 impl LLMProvider {
-    /// Create a new LLM provider instance
+    /// Creates a new LLM provider instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_name` - The name of the provider ("ollama" or "openrouter")
+    /// * `model` - The model name to use
+    /// * `api_key` - Optional API key (required for OpenRouter, ignored for Ollama)
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result<LLMProvider>` containing the configured provider instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The provider name is not supported
+    /// - OpenRouter is specified but no API key is provided
+    /// - The provider client cannot be initialized
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use ally::providers::LLMProvider;
+    ///
+    /// // Create Ollama provider (no API key needed)
+    /// let ollama = LLMProvider::new("ollama", "llama3.1", None)?;
+    ///
+    /// // Create OpenRouter provider (API key required)
+    /// let openrouter = LLMProvider::new("openrouter", "openai/gpt-4", Some("sk-..."))?;
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn new(provider_name: &str, model: &str, api_key: Option<&str>) -> Result<Self> {
         match provider_name {
             "ollama" => {
@@ -44,7 +125,21 @@ impl LLMProvider {
         }
     }
 
-    /// Get the model name for this provider
+    /// Returns the model name for this provider instance.
+    ///
+    /// # Returns
+    ///
+    /// A string slice containing the model name.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use ally::providers::LLMProvider;
+    ///
+    /// let provider = LLMProvider::new("ollama", "llama3.1", None)?;
+    /// assert_eq!(provider.model(), "llama3.1");
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
     pub fn model(&self) -> &str {
         match self {
             LLMProvider::Ollama { model, .. } => model,
@@ -52,7 +147,48 @@ impl LLMProvider {
         }
     }
 
-    /// Send a prompt to the LLM and get a response
+    /// Sends a prompt to the LLM and returns the response.
+    ///
+    /// This method handles the communication with the underlying LLM provider,
+    /// whether it's a local Ollama instance or a cloud-based OpenRouter service.
+    ///
+    /// # Arguments
+    ///
+    /// * `prompt` - The user prompt/message to send to the LLM
+    /// * `preamble` - System instructions or context for the LLM
+    /// * `max_tokens` - Maximum number of tokens in the response
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result<String>` containing the LLM's response text.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The network request fails (for cloud providers)
+    /// - The LLM service is unavailable
+    /// - The response cannot be parsed
+    /// - Rate limits are exceeded
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use ally::providers::LLMProvider;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> anyhow::Result<()> {
+    ///     let provider = LLMProvider::new("ollama", "llama3.1", None)?;
+    ///     
+    ///     let response = provider.prompt(
+    ///         "What is the capital of France?",
+    ///         "You are a helpful geography assistant.",
+    ///         100
+    ///     ).await?;
+    ///     
+    ///     println!("Response: {}", response);
+    ///     Ok(())
+    /// }
+    /// ```
     pub async fn prompt(&self, prompt: &str, preamble: &str, max_tokens: u64) -> Result<String> {
         let response = match self {
             LLMProvider::Ollama { client, model } => {

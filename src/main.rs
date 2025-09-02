@@ -542,6 +542,7 @@ mod tests {
             log_file: None,
             log_structured: false,
             acp: false,
+            command_history_length: 100,
         };
 
         let config = AgentConfig::new(

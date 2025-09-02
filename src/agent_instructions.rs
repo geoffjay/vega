@@ -1,10 +1,50 @@
+//! # Agent Instructions System
+//!
+//! This module provides functionality for discovering, loading, and managing
+//! agent instruction files (`AGENTS.md` and `ALLY.md`). These files contain
+//! behavioral guidelines, project context, and configuration for AI agents.
+//!
+//! ## File Types
+//!
+//! - **`AGENTS.md`**: General agent instructions that work with any AI agent
+//! - **`ALLY.md`**: Ally-specific instructions that take priority when present
+//!
+//! ## Discovery Process
+//!
+//! The system automatically searches for instruction files by:
+//! 1. Starting from the current working directory
+//! 2. Looking for `ALLY.md` first (higher priority)
+//! 3. Looking for `AGENTS.md` if `ALLY.md` not found
+//! 4. Walking up the directory tree until a file is found or root is reached
+//!
+//! ## Example Usage
+//!
+//! ```rust,no_run
+//! use ally::agent_instructions::{AgentInstructionLoader, format_instructions_for_prompt};
+//!
+//! #[tokio::main]
+//! async fn main() -> anyhow::Result<()> {
+//!     let loader = AgentInstructionLoader::new()?;
+//!     
+//!     if let Some(instructions) = loader.discover_instructions()? {
+//!         let formatted = format_instructions_for_prompt(&instructions);
+//!         println!("Found instructions: {}", formatted);
+//!     }
+//!     
+//!     Ok(())
+//! }
+//! ```
+
 use anyhow::{Context, Result};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tracing::{debug, info, warn};
 
-/// Represents agent instruction content from AGENTS.md or ALLY.md files
+/// Represents agent instruction content loaded from AGENTS.md or ALLY.md files.
+///
+/// This structure contains the raw markdown content along with metadata about
+/// where the instructions were found and what type of file they came from.
 #[derive(Debug, Clone)]
 pub struct AgentInstructions {
     /// The raw markdown content of the instruction file
