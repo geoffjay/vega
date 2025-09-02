@@ -7,6 +7,7 @@ use std::env;
 
 pub mod chat;
 
+use crate::agent_instructions::AgentInstructions;
 use crate::context::ContextStore;
 
 /// Base trait for all agent types
@@ -50,6 +51,7 @@ pub struct AgentConfig {
     pub embedding_model: Option<String>,
     pub openai_api_key: Option<String>,
     pub yolo: bool,
+    pub agent_instructions: Option<AgentInstructions>,
 }
 
 impl AgentConfig {
@@ -72,7 +74,14 @@ impl AgentConfig {
             embedding_model,
             openai_api_key,
             yolo,
+            agent_instructions: None,
         }
+    }
+
+    /// Create a new AgentConfig with agent instructions
+    pub fn with_instructions(mut self, instructions: AgentInstructions) -> Self {
+        self.agent_instructions = Some(instructions);
+        self
     }
 }
 
@@ -136,6 +145,7 @@ mod tests {
         assert_eq!(config.embedding_provider, "simple");
         assert_eq!(config.embedding_model, None);
         assert_eq!(config.openai_api_key, None);
+        assert!(config.agent_instructions.is_none());
     }
 
     #[test]
@@ -161,6 +171,7 @@ mod tests {
             Some("text-embedding-3-small".to_string())
         );
         assert_eq!(config.openai_api_key, Some("openai-key".to_string()));
+        assert!(config.agent_instructions.is_none());
     }
 
     #[test]
@@ -184,6 +195,10 @@ mod tests {
         assert_eq!(config.embedding_provider, cloned_config.embedding_provider);
         assert_eq!(config.embedding_model, cloned_config.embedding_model);
         assert_eq!(config.openai_api_key, cloned_config.openai_api_key);
+        assert_eq!(
+            config.agent_instructions.is_none(),
+            cloned_config.agent_instructions.is_none()
+        );
     }
 
     #[test]

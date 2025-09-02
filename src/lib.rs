@@ -1,3 +1,4 @@
+pub mod agent_instructions;
 pub mod agents;
 pub mod context;
 pub mod embeddings;

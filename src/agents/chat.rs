@@ -8,6 +8,7 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use super::{Agent, AgentConfig};
+use crate::agent_instructions::format_instructions_for_prompt;
 use crate::context::{ContextEntry, ContextStore};
 use crate::embeddings::{EmbeddingProvider, EmbeddingService};
 use crate::tools::*;
@@ -55,7 +56,13 @@ impl ChatAgent {
 
     /// Get the rendered system prompt for the agent
     fn get_system_prompt(&self) -> Result<String> {
-        let rendered_prompt = self.render_system_prompt()?;
+        let mut rendered_prompt = self.render_system_prompt()?;
+
+        // Add agent instructions if available
+        if let Some(ref instructions) = self.config.agent_instructions {
+            let formatted_instructions = format_instructions_for_prompt(instructions);
+            rendered_prompt.push_str(&formatted_instructions);
+        }
 
         if rendered_prompt.is_empty() {
             // Fallback to default tool-enabled prompt if no custom system prompt is set

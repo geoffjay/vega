@@ -5,6 +5,7 @@ use std::path::PathBuf;
 // Main module - uses custom logger for all output
 use uuid::Uuid;
 
+pub mod agent_instructions;
 pub mod agents;
 pub mod context;
 pub mod embeddings;
@@ -13,6 +14,7 @@ pub mod providers;
 pub mod tools;
 pub mod web;
 
+use crate::agent_instructions::AgentInstructionLoader;
 use crate::web::start_web_server_with_logger;
 use agents::chat::ChatAgent;
 use agents::{Agent, AgentConfig};
@@ -308,8 +310,29 @@ async fn main() -> Result<()> {
             .await?;
     }
 
+    // Discover and load agent instructions
+    let instruction_loader = AgentInstructionLoader::new()?;
+    let agent_instructions = match instruction_loader.discover_instructions()? {
+        Some(instructions) => {
+            ally_logger
+                .info(format!(
+                    "Loaded agent instructions from: {} ({})",
+                    instructions.source_path.display(),
+                    instructions.file_type.filename()
+                ))
+                .await?;
+            Some(instructions)
+        }
+        None => {
+            ally_logger
+                .debug("No AGENTS.md or ALLY.md files found in directory tree".to_string())
+                .await?;
+            None
+        }
+    };
+
     // Create agent configuration
-    let config = AgentConfig::new(
+    let mut config = AgentConfig::new(
         args.verbose,
         args.provider,
         args.model,
@@ -319,6 +342,11 @@ async fn main() -> Result<()> {
         args.openai_api_key,
         args.yolo,
     );
+
+    // Add agent instructions if found
+    if let Some(instructions) = agent_instructions {
+        config = config.with_instructions(instructions);
+    }
 
     // Start web server in background
     let web_context = context_arc.clone();
@@ -489,5 +517,6 @@ mod tests {
         assert_eq!(config.embedding_provider, "simple");
         assert_eq!(config.embedding_model, None);
         assert_eq!(config.openai_api_key, None);
+        assert!(config.agent_instructions.is_none());
     }
 }
