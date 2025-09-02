@@ -41,6 +41,7 @@ impl ContextEntry {
 
 /// Context store for managing conversation history and cross-agent context
 /// Uses SQLite for single-file storage with simple vector similarity via cosine distance
+#[derive(Clone)]
 pub struct ContextStore {
     connection: Arc<Mutex<Connection>>,
     embedding_dim: usize,
@@ -89,6 +90,17 @@ impl ContextStore {
             [],
         )?;
 
+        // Create command history table
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS command_history (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                command TEXT NOT NULL,
+                timestamp INTEGER NOT NULL
+            )",
+            [],
+        )?;
+
         // Create indexes for better performance
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_session_id ON context_entries(session_id)",
@@ -97,6 +109,16 @@ impl ContextStore {
 
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_timestamp ON context_entries(timestamp)",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_command_session_id ON command_history(session_id)",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_command_timestamp ON command_history(timestamp)",
             [],
         )?;
 
@@ -300,7 +322,16 @@ impl ContextStore {
             params![session_id],
         )?;
 
-        info!("Cleared context for session: {}", session_id);
+        // Delete command history
+        conn.execute(
+            "DELETE FROM command_history WHERE session_id = ?1",
+            params![session_id],
+        )?;
+
+        info!(
+            "Cleared context and command history for session: {}",
+            session_id
+        );
         Ok(())
     }
 
@@ -357,6 +388,96 @@ impl ContextStore {
         let count: i64 = stmt.query_row(params![session_id], |row| row.get(0))?;
 
         Ok(count > 0)
+    }
+
+    /// Store a command in the command history
+    pub async fn store_command_history(&self, session_id: &str, command: &str) -> Result<()> {
+        let conn = self.connection.lock().unwrap();
+
+        let command_id = Uuid::new_v4().to_string();
+        let timestamp = Utc::now().timestamp();
+
+        conn.execute(
+            "INSERT INTO command_history (id, session_id, command, timestamp) VALUES (?1, ?2, ?3, ?4)",
+            params![command_id, session_id, command, timestamp],
+        )?;
+
+        debug!("Stored command in history: {}", command);
+        Ok(())
+    }
+
+    /// Get command history for a session
+    pub async fn get_command_history(
+        &self,
+        session_id: &str,
+        limit: Option<usize>,
+    ) -> Result<Vec<String>> {
+        let conn = self.connection.lock().unwrap();
+
+        let (query, params): (String, Vec<Box<dyn rusqlite::ToSql>>) = match limit {
+            Some(limit) => (
+                "SELECT command FROM command_history 
+                 WHERE session_id = ?1 
+                 ORDER BY timestamp DESC 
+                 LIMIT ?2"
+                    .to_string(),
+                vec![Box::new(session_id.to_string()), Box::new(limit as i64)],
+            ),
+            None => (
+                "SELECT command FROM command_history 
+                 WHERE session_id = ?1 
+                 ORDER BY timestamp DESC"
+                    .to_string(),
+                vec![Box::new(session_id.to_string())],
+            ),
+        };
+
+        let mut stmt = conn.prepare(&query)?;
+        let param_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+
+        let commands = stmt
+            .query_map(&param_refs[..], |row| Ok(row.get::<_, String>(0)?))?
+            .collect::<Result<Vec<_>, _>>()?;
+
+        debug!("Retrieved {} command history entries", commands.len());
+        Ok(commands)
+    }
+
+    /// Clear command history for a session
+    pub async fn clear_command_history(&self, session_id: &str) -> Result<()> {
+        let conn = self.connection.lock().unwrap();
+
+        conn.execute(
+            "DELETE FROM command_history WHERE session_id = ?1",
+            params![session_id],
+        )?;
+
+        info!("Cleared command history for session: {}", session_id);
+        Ok(())
+    }
+
+    /// Trim command history to keep only the most recent N commands
+    pub async fn trim_command_history(&self, session_id: &str, max_commands: usize) -> Result<()> {
+        let conn = self.connection.lock().unwrap();
+
+        // Delete all but the most recent max_commands entries
+        conn.execute(
+            "DELETE FROM command_history 
+             WHERE session_id = ?1 
+             AND timestamp NOT IN (
+                 SELECT timestamp FROM command_history 
+                 WHERE session_id = ?1 
+                 ORDER BY timestamp DESC 
+                 LIMIT ?2
+             )",
+            params![session_id, max_commands as i64],
+        )?;
+
+        debug!(
+            "Trimmed command history for session {} to {} entries",
+            session_id, max_commands
+        );
+        Ok(())
     }
 
     /// Calculate cosine similarity between two embeddings

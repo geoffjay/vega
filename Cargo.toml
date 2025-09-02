@@ -33,6 +33,7 @@ thiserror = "1.0"
 urlencoding = "2.1"
 minijinja = "2.0"
 agent-client-protocol = "0.1"
+rustyline = "14.0"
 
 [dev-dependencies]
 tokio-test = "0.4"

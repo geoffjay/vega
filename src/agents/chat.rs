@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use rig::completion::Prompt;
 use rig::prelude::*;
 use rig::providers;
-use std::io::{self, Write};
+
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
@@ -11,6 +11,7 @@ use super::{Agent, AgentConfig};
 use crate::agent_instructions::format_instructions_for_prompt;
 use crate::context::{ContextEntry, ContextStore};
 use crate::embeddings::{EmbeddingProvider, EmbeddingService};
+use crate::input::InputHandler;
 use crate::tools::*;
 
 /// Chat agent that provides interactive conversation with an LLM and tool support
@@ -418,6 +419,17 @@ Respond in a conversational and helpful manner, using tools as needed to provide
             "models" => {
                 self.print_model_recommendations();
             }
+            "env" => {
+                self.print_environment_variables();
+            }
+            "logs" => {
+                let count = if parts.len() > 1 {
+                    parts[1].parse::<usize>().unwrap_or(10).min(10)
+                } else {
+                    10
+                };
+                self.print_session_logs(current_session_id, count).await?;
+            }
             _ => {
                 println!("Unknown command: /{}", parts[0]);
                 println!("Type /help for available commands.");
@@ -439,6 +451,8 @@ Respond in a conversational and helpful manner, using tools as needed to provide
         println!("  /sessions   - List all available sessions");
         println!("  /clear      - Clear current session history");
         println!("  /export <filename> - Export current session to a file");
+        println!("  /env        - Show all environment variables and their values");
+        println!("  /logs [count] - Show last 0-10 log lines for current session (default: 10)");
         println!();
         println!(
             "This agent has access to tools for web search, file operations, code search, and shell commands."
@@ -531,6 +545,80 @@ Respond in a conversational and helpful manner, using tools as needed to provide
         println!("   • Command line: ally --provider openrouter --model openai/gpt-4");
         println!("   • Environment: export ALLY_PROVIDER=openrouter ALLY_MODEL=openai/gpt-4");
     }
+
+    /// Print all environment variables and their values
+    fn print_environment_variables(&self) {
+        println!("🌍 Environment Variables:");
+        println!("═══════════════════════════════════════════════════════════════");
+
+        let mut env_vars: Vec<(String, String)> = std::env::vars().collect();
+        env_vars.sort_by(|a, b| a.0.cmp(&b.0));
+
+        for (key, value) in env_vars {
+            // Mask sensitive values (API keys, passwords, tokens)
+            let masked_value = if key.to_uppercase().contains("KEY")
+                || key.to_uppercase().contains("PASSWORD")
+                || key.to_uppercase().contains("TOKEN")
+                || key.to_uppercase().contains("SECRET")
+            {
+                if value.is_empty() {
+                    "<empty>".to_string()
+                } else {
+                    format!("{}***", &value[..std::cmp::min(4, value.len())])
+                }
+            } else {
+                value
+            };
+
+            println!("  {} = {}", key, masked_value);
+        }
+        println!("═══════════════════════════════════════════════════════════════");
+    }
+
+    /// Print session logs for the current session
+    async fn print_session_logs(&self, session_id: &str, count: usize) -> Result<()> {
+        if let Some(ref logger) = self.logger {
+            match logger.get_session_logs(session_id, Some(count)).await {
+                Ok(logs) => {
+                    if logs.is_empty() {
+                        println!("No logs found for current session.");
+                        return Ok(());
+                    }
+
+                    println!("📜 Session Logs (last {} entries):", logs.len());
+                    println!("═══════════════════════════════════════════════════════════════");
+
+                    for log in logs.iter().rev().take(count) {
+                        let level_color = match log.level.as_str() {
+                            "ERROR" => "\x1b[91m", // Red
+                            "WARN" => "\x1b[93m",  // Yellow
+                            "INFO" => "\x1b[92m",  // Green
+                            "DEBUG" => "\x1b[94m", // Blue
+                            "TRACE" => "\x1b[90m", // Gray
+                            _ => "\x1b[0m",        // Default
+                        };
+
+                        println!(
+                            "{} [{}{}{}] {}",
+                            log.timestamp.format("%H:%M:%S%.3f"),
+                            level_color,
+                            log.level,
+                            "\x1b[0m", // Reset color
+                            log.message
+                        );
+                    }
+                    println!("═══════════════════════════════════════════════════════════════");
+                }
+                Err(e) => {
+                    println!("Error retrieving logs: {}", e);
+                }
+            }
+        } else {
+            println!("Logging is not configured for this session.");
+            println!("To enable logging, restart with --log-output file or --log-output vector");
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -550,20 +638,27 @@ impl Agent for ChatAgent {
         println!("\x1b[93mAgent\x1b[0m: {}", self.greeting());
         println!();
 
-        loop {
-            // Get user input
-            print!("\x1b[94mλ\x1b[0m ");
-            io::stdout().flush()?;
+        // Initialize input handler with command history
+        let mut input_handler = InputHandler::new(
+            session_id.to_string(),
+            std::sync::Arc::new(context.clone()),
+            Some(
+                std::env::var("ALLY_COMMAND_HISTORY_LENGTH")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(100),
+            ),
+        )?;
 
-            let mut input = String::new();
-            match io::stdin().read_line(&mut input) {
-                Ok(0) => {
-                    if self.config.verbose {
-                        debug!("EOF received, ending chat session");
-                    }
-                    break;
-                }
-                Ok(_) => {
+        // Load command history from database
+        if let Err(e) = input_handler.load_history().await {
+            warn!("Failed to load command history: {}", e);
+        }
+
+        loop {
+            // Get user input with history and editing support
+            match input_handler.read_line("\x1b[94mλ\x1b[0m ").await? {
+                Some(input) => {
                     let user_input = input.trim();
 
                     // Check for quit commands
@@ -652,9 +747,11 @@ impl Agent for ChatAgent {
                         }
                     }
                 }
-                Err(e) => {
-                    error!("Error reading input: {}", e);
-                    return Err(e.into());
+                None => {
+                    if self.config.verbose {
+                        debug!("EOF or interrupt received, ending chat session");
+                    }
+                    break;
                 }
             }
         }

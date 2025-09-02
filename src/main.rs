@@ -10,6 +10,7 @@ pub mod agent_instructions;
 pub mod agents;
 pub mod context;
 pub mod embeddings;
+pub mod input;
 pub mod logging;
 pub mod providers;
 pub mod tools;
@@ -39,6 +40,7 @@ use logging::{AllyLogger, LogLevel, LoggerConfig};
                   - ALLY_LOG_FILE: Set the log file path\n\
                   - ALLY_LOG_STRUCTURED: Enable structured JSON logging\n\
                   - ALLY_LOG_LEVEL: Set log level (error, warn, info, debug, trace)\n\
+                  - ALLY_COMMAND_HISTORY_LENGTH: Set command history length (default: 100)\n\
                   - OPENROUTER_API_KEY: Set the OpenRouter API key\n\
                   - OPENAI_API_KEY: Set the OpenAI API key for embeddings"
 )]
@@ -113,6 +115,11 @@ struct Args {
     /// Run in Agent Client Protocol (ACP) mode for editor integration
     #[arg(long)]
     acp: bool,
+
+    /// Command history length (default: 100)
+    /// Can also be set via ALLY_COMMAND_HISTORY_LENGTH environment variable
+    #[arg(long, env = "ALLY_COMMAND_HISTORY_LENGTH", default_value = "100")]
+    command_history_length: usize,
 }
 
 impl Args {
@@ -164,6 +171,10 @@ impl Args {
             "  • ACP mode: {}",
             if self.acp { "enabled" } else { "disabled" }
         );
+        println!(
+            "  • Command history length: {}",
+            self.command_history_length
+        );
 
         // Display API key status (without revealing the actual keys)
         if self.openrouter_api_key.is_some() {
@@ -193,6 +204,7 @@ impl Args {
             ("ALLY_LOG_FILE", "Log file path"),
             ("ALLY_LOG_STRUCTURED", "Structured logging"),
             ("ALLY_LOG_LEVEL", "Log level"),
+            ("ALLY_COMMAND_HISTORY_LENGTH", "Command history length"),
             ("OPENROUTER_API_KEY", "OpenRouter API key"),
             ("OPENAI_API_KEY", "OpenAI API key"),
         ];

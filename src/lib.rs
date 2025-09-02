@@ -3,6 +3,7 @@ pub mod agent_instructions;
 pub mod agents;
 pub mod context;
 pub mod embeddings;
+pub mod input;
 pub mod logging;
 pub mod providers;
 pub mod tools;
