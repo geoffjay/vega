@@ -8,6 +8,7 @@ pub mod confirmed;
 pub mod edit_file;
 pub mod list_files;
 pub mod read_file;
+pub mod read_logs;
 pub mod web_search;
 
 // Re-export all tools
@@ -17,6 +18,7 @@ pub use confirmed::{ConfirmedBashTool, ConfirmedEditFileTool};
 pub use edit_file::EditFileTool;
 pub use list_files::ListFilesTool;
 pub use read_file::ReadFileTool;
+pub use read_logs::ReadLogsTool;
 pub use web_search::WebSearchTool;
 
 /// Common error types for tools
@@ -47,6 +49,7 @@ pub fn create_all_tools() -> Vec<Box<dyn std::any::Any + Send + Sync>> {
         Box::new(ReadFileTool::new()),
         Box::new(EditFileTool::new()),
         Box::new(ListFilesTool::new()),
+        Box::new(ReadLogsTool::new()),
     ]
 }
 
@@ -57,6 +60,6 @@ mod tests {
     #[test]
     fn test_create_all_tools() {
         let tools = create_all_tools();
-        assert_eq!(tools.len(), 6);
+        assert_eq!(tools.len(), 7);
     }
 }

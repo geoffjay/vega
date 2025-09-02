@@ -75,6 +75,7 @@ Available tools:
 - read_file: Read the contents of files
 - edit_file: Create or modify files
 - list_files: List files and directories
+- read_logs: Read log messages for a specific session
 
 Guidelines for tool usage:
 1. Always explain what you're doing before using a tool
@@ -181,6 +182,7 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                     .tool(ReadFileTool::new())
                     .tool(ConfirmedEditFileTool::new(self.config.yolo))
                     .tool(ListFilesTool::new())
+                    .tool(ReadLogsTool::new())
                     .build();
 
                 agent
@@ -201,6 +203,7 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                     .tool(ReadFileTool::new())
                     .tool(ConfirmedEditFileTool::new(self.config.yolo))
                     .tool(ListFilesTool::new())
+                    .tool(ReadLogsTool::new())
                     .build();
 
                 agent
@@ -221,6 +224,7 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                     .tool(ReadFileTool::new())
                     .tool(ConfirmedEditFileTool::new(self.config.yolo))
                     .tool(ListFilesTool::new())
+                    .tool(ReadLogsTool::new())
                     .build();
 
                 agent
@@ -437,6 +441,7 @@ Respond in a conversational and helpful manner, using tools as needed to provide
         println!("  📖 read_file     - Read the contents of files");
         println!("  ✏️  edit_file     - Create or modify files");
         println!("  📁 list_files    - List files and directories");
+        println!("  📜 read_logs     - Read log messages for a specific session");
         println!();
         println!("Examples:");
         println!("  \"Search for the latest news about Rust programming\"");
@@ -445,6 +450,7 @@ Respond in a conversational and helpful manner, using tools as needed to provide
         println!("  \"Find all functions named 'main' in this project\"");
         println!("  \"Create a new README.md file with project description\"");
         println!("  \"Run 'cargo check' to verify the project builds\"");
+        println!("  \"Show me the logs for session abc123\"");
     }
 
     /// Print model recommendations for tool support

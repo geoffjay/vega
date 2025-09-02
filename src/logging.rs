@@ -23,6 +23,8 @@ pub struct LoggerConfig {
     pub file_path: Option<PathBuf>,
     /// Whether to log to the vector store
     pub vector_store: bool,
+    /// Whether to log to console
+    pub console_output: bool,
     /// Session ID for this logging session
     pub session_id: String,
 }
@@ -34,6 +36,7 @@ impl LoggerConfig {
             structured: false,
             file_path: None,
             vector_store: false,
+            console_output: true,
             session_id,
         }
     }
@@ -57,6 +60,11 @@ impl LoggerConfig {
         self.vector_store = enabled;
         self
     }
+
+    pub fn with_console_output(mut self, enabled: bool) -> Self {
+        self.console_output = enabled;
+        self
+    }
 }
 
 /// Log levels supported by the custom logger
@@ -78,6 +86,15 @@ impl LogLevel {
             "debug" => LogLevel::Debug,
             "trace" => LogLevel::Trace,
             _ => LogLevel::Info,
+        }
+    }
+
+    /// Get log level from environment variable, with fallback to provided default
+    pub fn from_env_or_default(default: LogLevel) -> Self {
+        if let Ok(level_str) = std::env::var("ALLY_LOG_LEVEL") {
+            Self::from_str(&level_str)
+        } else {
+            default
         }
     }
 
@@ -259,8 +276,10 @@ impl AllyLogger {
             entry = entry.with_metadata(metadata);
         }
 
-        // Log to console (always enabled)
-        self.log_to_console(&entry).await?;
+        // Log to console if enabled
+        if self.config.console_output {
+            self.log_to_console(&entry).await?;
+        }
 
         // Log to file if configured
         if self.file_writer.is_some() {

@@ -37,6 +37,7 @@ use logging::{AllyLogger, LogLevel, LoggerConfig};
                   - ALLY_LOG_OUTPUT: Set log output destinations (console, file, vector)\n\
                   - ALLY_LOG_FILE: Set the log file path\n\
                   - ALLY_LOG_STRUCTURED: Enable structured JSON logging\n\
+                  - ALLY_LOG_LEVEL: Set log level (error, warn, info, debug, trace)\n\
                   - OPENROUTER_API_KEY: Set the OpenRouter API key\n\
                   - OPENAI_API_KEY: Set the OpenAI API key for embeddings"
 )]
@@ -182,6 +183,7 @@ impl Args {
             ("ALLY_LOG_OUTPUT", "Log output destinations"),
             ("ALLY_LOG_FILE", "Log file path"),
             ("ALLY_LOG_STRUCTURED", "Structured logging"),
+            ("ALLY_LOG_LEVEL", "Log level"),
             ("OPENROUTER_API_KEY", "OpenRouter API key"),
             ("OPENAI_API_KEY", "OpenAI API key"),
         ];
@@ -249,15 +251,26 @@ async fn main() -> Result<()> {
     let context_arc = std::sync::Arc::new(context);
 
     // Initialize custom logger
-    let log_level = if args.verbose {
+    let base_log_level = if args.verbose {
         LogLevel::Debug
     } else {
         LogLevel::Info
     };
 
+    // Use environment variable for log level if set, with precedence for trace level
+    let log_level = LogLevel::from_env_or_default(base_log_level);
+    let final_log_level = if log_level == LogLevel::Trace {
+        log_level // Environment variable takes precedence for trace level
+    } else if args.verbose {
+        LogLevel::Debug // --verbose still works for debug level
+    } else {
+        log_level
+    };
+
     let mut logger_config = LoggerConfig::new(session_id.clone())
-        .with_console_level(log_level)
-        .with_structured(args.log_structured);
+        .with_console_level(final_log_level)
+        .with_structured(args.log_structured)
+        .with_console_output(log_outputs.contains(&"console"));
 
     // Configure file logging if requested
     if log_outputs.contains(&"file") {
