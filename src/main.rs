@@ -12,6 +12,7 @@ pub mod context;
 pub mod embeddings;
 pub mod input;
 pub mod logging;
+pub mod mcp;
 pub mod providers;
 pub mod tools;
 pub mod web;
@@ -126,6 +127,22 @@ struct Args {
     /// Can also be set via VEGA_COMMAND_HISTORY_LENGTH environment variable
     #[arg(long, env = "VEGA_COMMAND_HISTORY_LENGTH", default_value = "100")]
     command_history_length: usize,
+
+    /// Enable MCP (Model Context Protocol) server
+    #[arg(long)]
+    mcp_server: bool,
+
+    /// MCP server name
+    #[arg(long, default_value = "vega-mcp-server")]
+    mcp_server_name: String,
+
+    /// Enable MCP client connections
+    #[arg(long)]
+    mcp_client: bool,
+
+    /// MCP client configuration file path
+    #[arg(long)]
+    mcp_config: Option<PathBuf>,
 }
 
 impl Args {
@@ -426,6 +443,68 @@ async fn main() -> Result<()> {
             args.web_port
         ))
         .await?;
+
+    // Initialize MCP if requested
+    let mut mcp_manager = None;
+    if args.mcp_server || args.mcp_client {
+        use crate::mcp::{McpConfig, McpManager, SimpleMcpServerConfig};
+
+        let mut mcp_config = McpConfig::default();
+
+        // Configure MCP server if enabled
+        if args.mcp_server {
+            let server_config = SimpleMcpServerConfig {
+                name: args.mcp_server_name.clone(),
+                version: "0.1.0".to_string(),
+                enabled_tools: vec![
+                    "bash".to_string(),
+                    "read_file".to_string(),
+                    "edit_file".to_string(),
+                    "list_files".to_string(),
+                    "code_search".to_string(),
+                    "web_search".to_string(),
+                ],
+            };
+
+            let mut manager = McpManager::new();
+            manager.start_server(server_config);
+
+            logger
+                .info("MCP server started - Vega tools are now available via MCP".to_string())
+                .await?;
+            mcp_manager = Some(manager);
+        }
+
+        // Load MCP client configuration if provided
+        if args.mcp_client {
+            if let Some(config_path) = &args.mcp_config {
+                match McpConfig::from_file(&config_path.to_string_lossy()) {
+                    Ok(loaded_config) => {
+                        mcp_config = loaded_config;
+                        logger
+                            .info(format!("Loaded MCP configuration from {:?}", config_path))
+                            .await?;
+                    }
+                    Err(e) => {
+                        logger
+                            .warn(format!(
+                                "Failed to load MCP config from {:?}: {}",
+                                config_path, e
+                            ))
+                            .await?;
+                    }
+                }
+            }
+
+            if mcp_manager.is_none() {
+                mcp_manager = Some(McpManager::with_config(mcp_config));
+            }
+
+            logger
+                .info("MCP client enabled - can connect to external MCP servers".to_string())
+                .await?;
+        }
+    }
 
     // Create the chat agent
     let agent = ChatAgent::new(config)?.with_logger(logger.clone());

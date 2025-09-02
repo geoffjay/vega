@@ -1,6 +1,6 @@
 # Test Documentation
 
-This document describes the comprehensive test suite for the Ally AI chat agent.
+This document describes the comprehensive test suite for the Vega AI chat agent.
 
 ## Test Structure
 

@@ -12,6 +12,7 @@ An AI chat agent built with Rust using the [Rig framework](https://github.com/0x
 - 🔗 **Agent Client Protocol (ACP)**: Compatible with ACP-enabled editors like Zed
 - 🧠 **Context Awareness**: Persistent conversation history with embedding-based retrieval
 - 🛠️ **Tool Support**: File operations, web search, code analysis, and more
+- 🔗 **MCP Support**: Model Context Protocol client and server for tool interoperability
 
 ## Prerequisites
 
@@ -94,6 +95,24 @@ vega --acp --provider openrouter --model openai/gpt-4 --openrouter-api-key YOUR_
 vega --acp --provider ollama --model llama3.2
 ```
 
+### Model Context Protocol (MCP) Mode
+
+Vega supports the Model Context Protocol, allowing it to function as both an MCP server (exposing its tools to other AI systems) and an MCP client (connecting to external MCP servers):
+
+```bash
+# Run Vega as an MCP server (exposes tools via MCP)
+vega --mcp-server
+
+# Run Vega as an MCP server with custom name
+vega --mcp-server --mcp-server-name "my-vega-server"
+
+# Run Vega with MCP client support
+vega --mcp-client --mcp-config mcp_config.json
+
+# Run both MCP server and client
+vega --mcp-server --mcp-client --mcp-config mcp_config.json
+```
+
 For detailed ACP integration information, see [ACP_INTEGRATION.md](ACP_INTEGRATION.md).
 
 ### Full Command Reference
@@ -108,6 +127,10 @@ Options:
       --openrouter-api-key <API_KEY>   OpenRouter API key (required if using openrouter provider)
                                        Can also be set via OPENROUTER_API_KEY environment variable
       --acp                            Run in Agent Client Protocol (ACP) mode for editor integration
+      --mcp-server                     Enable MCP (Model Context Protocol) server
+      --mcp-server-name <NAME>         MCP server name [default: vega-mcp-server]
+      --mcp-client                     Enable MCP client connections
+      --mcp-config <FILE>              MCP client configuration file path
   -h, --help                           Print help
   -V, --version                        Print version
 ```

@@ -1,6 +1,6 @@
-//! Agent Client Protocol (ACP) implementation for Ally
+//! Agent Client Protocol (ACP) implementation for Vega
 //!
-//! This module provides ACP server functionality, allowing Ally to be used
+//! This module provides ACP server functionality, allowing Vega to be used
 //! as an agent in ACP-compatible editors like Zed.
 
 use agent_client_protocol::{self as acp, Client};
@@ -89,7 +89,7 @@ impl AcpAgent {
         .await
     }
 
-    /// Process a prompt using the underlying Ally chat agent
+    /// Process a prompt using the underlying Vega chat agent
     async fn process_prompt(&self, session_id: &acp::SessionId, prompt: &str) -> Result<()> {
         // Create a chat agent for this session (we don't store them as they're stateless)
         let chat_agent = ChatAgent::new(self.config.clone())?.with_logger(self.logger.clone());
@@ -156,8 +156,8 @@ impl AcpAgent {
         // Generate a response (this is simplified - the real implementation would
         // use the full ChatAgent functionality)
         let response = format!(
-            "I received your message: \"{}\". This is a response from Ally via the Agent Client Protocol. \
-            The full integration with Ally's chat capabilities is in progress.",
+            "I received your message: \"{}\". This is a response from Vega via the Agent Client Protocol. \
+            The full integration with Vega's chat capabilities is in progress.",
             prompt
         );
 
@@ -315,14 +315,14 @@ impl acp::Agent for AcpAgent {
 }
 
 /// ACP Client implementation for handling client-side operations
-pub struct AllyAcpClient {
+pub struct AcpClient {
     /// Logger for client operations
     logger: Arc<Logger>,
     /// Current working directory
     cwd: Arc<Mutex<PathBuf>>,
 }
 
-impl AllyAcpClient {
+impl AcpClient {
     pub fn new(logger: Arc<Logger>) -> Self {
         Self {
             logger,
@@ -331,7 +331,7 @@ impl AllyAcpClient {
     }
 }
 
-impl acp::Client for AllyAcpClient {
+impl acp::Client for AcpClient {
     async fn request_permission(
         &self,
         _args: acp::RequestPermissionRequest,
@@ -530,7 +530,7 @@ mod tests {
     #[tokio::test]
     async fn test_acp_client_creation() -> Result<()> {
         let logger = create_test_logger().await?;
-        let _client = AllyAcpClient::new(logger);
+        let _client = AcpClient::new(logger);
         Ok(())
     }
 }

@@ -1,10 +1,10 @@
-# Ally Tools Documentation
+# Vega Tools Documentation
 
-This document describes all available tools in the Ally AI agent system and their purposes.
+This document describes all available tools in the Vega AI agent system and their purposes.
 
 ## Overview
 
-Ally provides a comprehensive set of tools that enable the AI agent to interact with the system, manipulate files, search code, browse the web, and more. All tools are implemented using the Rig framework's tool system and include safety checks and validation.
+Vega provides a comprehensive set of tools that enable the AI agent to interact with the system, manipulate files, search code, browse the web, and more. All tools are implemented using the Rig framework's tool system and include safety checks and validation.
 
 ## Available Tools
 
@@ -239,8 +239,8 @@ All tools use a common error type system (`ToolError`) that provides:
 
 Tools respect various environment variables for configuration:
 
-- `ALLY_LOG_OUTPUT`: Controls log output destination (console, file, vector)
-- `ALLY_LOG_FILE`: Path to log file for file-based logging
+- `VEGA_LOG_OUTPUT`: Controls log output destination (console, file, vector)
+- `VEGA_LOG_FILE`: Path to log file for file-based logging
 - Tool-specific timeouts and limits can be configured via parameters
 
 ### Tool Collection

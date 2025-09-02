@@ -1,20 +1,20 @@
 //! # Agent Instructions System
 //!
 //! This module provides functionality for discovering, loading, and managing
-//! agent instruction files (`AGENTS.md` and `ALLY.md`). These files contain
+//! agent instruction files (`AGENTS.md` and `VEGA.md`). These files contain
 //! behavioral guidelines, project context, and configuration for AI agents.
 //!
 //! ## File Types
 //!
 //! - **`AGENTS.md`**: General agent instructions that work with any AI agent
-//! - **`ALLY.md`**: Vega-specific instructions that take priority when present
+//! - **`VEGA.md`**: Vega-specific instructions that take priority when present
 //!
 //! ## Discovery Process
 //!
 //! The system automatically searches for instruction files by:
 //! 1. Starting from the current working directory
-//! 2. Looking for `ALLY.md` first (higher priority)
-//! 3. Looking for `AGENTS.md` if `ALLY.md` not found
+//! 2. Looking for `VEGA.md` first (higher priority)
+//! 3. Looking for `AGENTS.md` if `VEGA.md` not found
 //! 4. Walking up the directory tree until a file is found or root is reached
 //!
 //! ## Example Usage
@@ -41,7 +41,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tracing::{debug, info, warn};
 
-/// Represents agent instruction content loaded from AGENTS.md or ALLY.md files.
+/// Represents agent instruction content loaded from AGENTS.md or VEGA.md files.
 ///
 /// This structure contains the raw markdown content along with metadata about
 /// where the instructions were found and what type of file they came from.
@@ -51,7 +51,7 @@ pub struct AgentInstructions {
     pub content: String,
     /// The path where the instructions were found
     pub source_path: PathBuf,
-    /// Whether this came from AGENTS.md or ALLY.md
+    /// Whether this came from AGENTS.md or VEGA.md
     pub file_type: InstructionFileType,
 }
 
@@ -96,13 +96,13 @@ impl AgentInstructionLoader {
 
     /// Discover and load agent instructions from the directory tree
     ///
-    /// This method searches for AGENTS.md and ALLY.md files starting from the current
-    /// directory and walking up the directory tree. It prioritizes ALLY.md over AGENTS.md
+    /// This method searches for AGENTS.md and VEGA.md files starting from the current
+    /// directory and walking up the directory tree. It prioritizes VEGA.md over AGENTS.md
     /// and returns the first instruction file found.
     ///
     /// The search follows these rules:
     /// 1. Start from the current working directory
-    /// 2. Look for ALLY.md first, then AGENTS.md in each directory
+    /// 2. Look for VEGA.md first, then AGENTS.md in each directory
     /// 3. Walk up the directory tree until a file is found or root is reached
     /// 4. Return the first instruction file found
     pub fn discover_instructions(&self) -> Result<Option<AgentInstructions>> {
@@ -300,7 +300,7 @@ mod tests {
 
         assert!(result.is_some());
         let instructions = result.unwrap();
-        // ALLY.md should take priority
+        // VEGA.md should take priority
         assert_eq!(instructions.file_type, InstructionFileType::Vega);
         assert_eq!(instructions.source_path, vega_path);
     }

@@ -10,9 +10,9 @@ use tokio::process::Command;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("Testing Ally ACP integration...");
+    println!("Testing Vega ACP integration...");
 
-    // Start Ally in ACP mode
+    // Start Vega in ACP mode
     let mut child = Command::new("cargo")
         .args(&[
             "run",

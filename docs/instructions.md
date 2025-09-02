@@ -1,30 +1,30 @@
 # Agent Instructions Documentation
 
-This document explains how to use agent instructions in the Ally AI system through `AGENTS.md` and `ALLY.md` files.
+This document explains how to use agent instructions in the Vega AI system through `AGENTS.md` and `VEGA.md` files.
 
 ## Overview
 
-Agent instructions are markdown files that provide context, guidelines, and behavioral instructions to AI agents. The Ally system supports two types of instruction files:
+Agent instructions are markdown files that provide context, guidelines, and behavioral instructions to AI agents. The Vega system supports two types of instruction files:
 
 - **`AGENTS.md`**: General agent instructions for any AI agent
-- **`ALLY.md`**: Ally-specific instructions that take priority when both files are present
+- **`VEGA.md`**: Vega-specific instructions that take priority when both files are present
 
 ## File Discovery and Priority
 
 ### Discovery Process
 
-The Ally system automatically discovers instruction files using the following process:
+The Vega system automatically discovers instruction files using the following process:
 
 1. **Start from current directory**: Begin searching in the current working directory
-2. **Check for ALLY.md first**: Look for Ally-specific instructions (higher priority)
-3. **Check for AGENTS.md**: Look for general agent instructions if ALLY.md not found
+2. **Check for VEGA.md first**: Look for Vega-specific instructions (higher priority)
+3. **Check for AGENTS.md**: Look for general agent instructions if VEGA.md not found
 4. **Walk up directory tree**: Continue searching parent directories until a file is found or filesystem root is reached
 5. **Return first match**: Use the first instruction file found in the search
 
 ### Priority Rules
 
-- `ALLY.md` takes **absolute priority** over `AGENTS.md`
-- If both files exist in the same directory, only `ALLY.md` is used
+- `VEGA.md` takes **absolute priority** over `AGENTS.md`
+- If both files exist in the same directory, only `VEGA.md` is used
 - Files in subdirectories take priority over files in parent directories
 - The search stops at the first instruction file found
 
@@ -66,18 +66,18 @@ Security practices and restrictions for the agent.
 Important architectural decisions and patterns.
 ```
 
-### ALLY.md Structure
+### VEGA.md Structure
 
-The `ALLY.md` file contains Ally-specific instructions and personality traits:
+The `VEGA.md` file contains Vega-specific instructions and personality traits:
 
 ```markdown
-# ALLY.md
+# VEGA.md
 
-## Ally-Specific Instructions
+## Vega-Specific Instructions
 
-Instructions that are unique to the Ally agent.
+Instructions that are unique to the Vega agent.
 
-## Ally's Personality
+## Vega's Personality
 
 Personality traits and behavioral guidelines.
 
@@ -85,17 +85,17 @@ Personality traits and behavioral guidelines.
 
 Instructions for multilingual support and response adaptation.
 
-## Ally-Specific Features
+## Vega-Specific Features
 
-Features unique to Ally (context awareness, tool integration, etc.).
+Features unique to Vega (context awareness, tool integration, etc.).
 
 ## Response Style Guidelines
 
-How Ally should structure and format responses.
+How Vega should structure and format responses.
 
 ## Special Capabilities
 
-Unique capabilities and use cases for Ally.
+Unique capabilities and use cases for Vega.
 ```
 
 ## Current Implementation
@@ -104,7 +104,7 @@ Unique capabilities and use cases for Ally.
 
 The current `AGENTS.md` includes:
 
-- **Project Overview**: Description of the Ally AI agent project built with Rust and Rig framework
+- **Project Overview**: Description of the Vega AI agent project built with Rust and Rig framework
 - **Setup Commands**: Build (`cargo build`), run (`cargo run`), test (`cargo test`) commands
 - **Code Style**: Rust 2024 edition, formatting with `cargo fmt`, functional programming patterns
 - **Testing Instructions**: Various test execution commands and integration test location
@@ -112,9 +112,9 @@ The current `AGENTS.md` includes:
 - **Security Considerations**: Safety guidelines and YOLO mode usage
 - **Architecture Notes**: SQLite context storage, LLM provider support, Rig framework integration
 
-### ALLY.md Content
+### VEGA.md Content
 
-The current `ALLY.md` includes:
+The current `VEGA.md` includes:
 
 - **Personality Traits**: Intelligent, thoughtful, kind, helpful, capable of deep reasoning
 - **Language Adaptation**: Respond in the same language as the user
@@ -140,7 +140,7 @@ let loader = AgentInstructionLoader::new()?;
 let instructions = loader.discover_instructions()?;
 
 // Load from specific path
-let instructions = loader.load_from_path("path/to/ALLY.md")?;
+let instructions = loader.load_from_path("path/to/VEGA.md")?;
 ```
 
 ### AgentInstructions Structure
@@ -149,12 +149,12 @@ let instructions = loader.load_from_path("path/to/ALLY.md")?;
 pub struct AgentInstructions {
     pub content: String,           // Raw markdown content
     pub source_path: PathBuf,      // Path where instructions were found
-    pub file_type: InstructionFileType, // AGENTS or ALLY
+    pub file_type: InstructionFileType, // AGENTS or VEGA
 }
 
 pub enum InstructionFileType {
     Agents,  // AGENTS.md file
-    Ally,    // ALLY.md file
+    Vega,    // VEGA.md file
 }
 ```
 
@@ -187,10 +187,10 @@ let formatted = format_instructions_for_prompt(&instructions);
 - Document **security requirements** and restrictions
 - Explain **tool usage patterns** and best practices
 
-### ALLY.md Best Practices
+### VEGA.md Best Practices
 
 - Define **personality traits** and communication style
-- Specify **unique capabilities** that differentiate Ally
+- Specify **unique capabilities** that differentiate Vega
 - Include **response formatting** preferences
 - Document **special features** like context awareness
 - Provide **interaction guidelines** for different scenarios
@@ -198,8 +198,8 @@ let formatted = format_instructions_for_prompt(&instructions);
 ### File Organization
 
 1. **Place at project root**: Instructions are most discoverable at the project root
-2. **Use consistent naming**: Always use `AGENTS.md` and `ALLY.md` (case-sensitive)
-3. **Maintain both files**: Keep both general and Ally-specific instructions
+2. **Use consistent naming**: Always use `AGENTS.md` and `VEGA.md` (case-sensitive)
+3. **Maintain both files**: Keep both general and Vega-specific instructions
 4. **Version control**: Include instruction files in version control
 5. **Document changes**: Use commit messages to track instruction updates
 
@@ -261,7 +261,7 @@ Create templates for common instruction patterns:
 
 2. **Wrong instructions loaded**:
 
-   - Check file priority (ALLY.md vs AGENTS.md)
+   - Check file priority (VEGA.md vs AGENTS.md)
    - Verify current working directory
    - Review directory search path
 
@@ -280,7 +280,7 @@ cargo run -- --verbose
 
 Check logs for instruction loading messages:
 
-- "Found ALLY.md at: [path]"
+- "Found VEGA.md at: [path]"
 - "Found AGENTS.md at: [path]"
 - "Loaded X bytes from [file] file: [path]"
 

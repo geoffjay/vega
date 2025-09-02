@@ -37,8 +37,8 @@ impl ReadLogsTool {
     }
 
     fn get_log_config() -> (String, Option<PathBuf>) {
-        let log_output = env::var("ALLY_LOG_OUTPUT").unwrap_or_else(|_| "console".to_string());
-        let log_file = env::var("ALLY_LOG_FILE").ok().map(PathBuf::from);
+        let log_output = env::var("VEGA_LOG_OUTPUT").unwrap_or_else(|_| "console".to_string());
+        let log_file = env::var("VEGA_LOG_FILE").ok().map(PathBuf::from);
         (log_output, log_file)
     }
 

@@ -1,0 +1,56 @@
+{
+  "server": {
+    "name": "vega-mcp-server",
+    "description": "Vega AI Agent MCP Server",
+    "version": "0.1.0",
+    "transport": {
+      "transport_type": "Stdio",
+      "options": {
+        "timeout": 30,
+        "buffer_size": 8192,
+        "keep_alive": true
+      }
+    },
+    "exposed_tools": [
+      "bash",
+      "read_file",
+      "edit_file",
+      "list_files",
+      "code_search",
+      "web_search"
+    ],
+    "settings": {
+      "enable_cors": true,
+      "max_request_size": 10485760
+    }
+  },
+  "clients": {
+    "example_python_server": {
+      "server_name": "example-python-server",
+      "command": "python",
+      "args": ["mcp_server.py"],
+      "env": {},
+      "cwd": null,
+      "transport": {
+        "transport_type": "Stdio",
+        "options": {
+          "timeout": 30,
+          "buffer_size": 8192,
+          "keep_alive": true
+        }
+      },
+      "settings": {
+        "connection_pooling": false,
+        "max_connections": 1,
+        "connection_timeout": 10
+      }
+    }
+  },
+  "settings": {
+    "debug": false,
+    "max_concurrent_calls": 10,
+    "default_timeout": 30,
+    "auto_reconnect": true,
+    "retry_attempts": 3
+  }
+}

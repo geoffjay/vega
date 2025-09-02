@@ -3,7 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ally Context Viewer</title>
+    <meta name="color-scheme" content="light dark">
+    <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"
+    >
+    <title>Vega Context Viewer</title>
     <style>
         * {
             margin: 0;
@@ -16,12 +21,6 @@
             background: #f5f5f5;
             color: #333;
             line-height: 1.6;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
         }
 
         .header {
@@ -306,9 +305,9 @@
     </style>
 </head>
 <body>
-    <div class="container">
+    <main class="container">
         <div class="header">
-            <h1>🤖 Ally Context Viewer</h1>
+            <h1>🤖 Vega Context Viewer</h1>
             <p>View and explore conversation history and context across all sessions</p>
         </div>
 
@@ -345,7 +344,7 @@
                 <div id="logs-list"></div>
             </div>
         </div>
-    </div>
+    </main>
 
     <script>
         let currentSessionId = null;

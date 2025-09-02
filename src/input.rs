@@ -26,7 +26,7 @@ impl InputHandler {
         // Get history length from parameter or environment variable or default
         let history_length = history_length
             .or_else(|| {
-                env::var("ALLY_COMMAND_HISTORY_LENGTH")
+                env::var("VEGA_COMMAND_HISTORY_LENGTH")
                     .ok()
                     .and_then(|s| s.parse().ok())
             })

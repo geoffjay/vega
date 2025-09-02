@@ -91,7 +91,7 @@ impl LogLevel {
 
     /// Get log level from environment variable, with fallback to provided default
     pub fn from_env_or_default(default: LogLevel) -> Self {
-        if let Ok(level_str) = std::env::var("ALLY_LOG_LEVEL") {
+        if let Ok(level_str) = std::env::var("VEGA_LOG_LEVEL") {
             Self::from_str(&level_str)
         } else {
             default
