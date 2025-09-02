@@ -1,6 +1,6 @@
-//! # Tool System for Ally AI Agent
+//! # Tool System for Vega AI Agent
 //!
-//! This module provides a comprehensive set of tools that enable the Ally AI agent
+//! This module provides a comprehensive set of tools that enable the Vega AI agent
 //! to interact with the system, manipulate files, search code, browse the web, and more.
 //! All tools are implemented using the Rig framework's tool system and include
 //! safety checks and validation.
@@ -33,7 +33,7 @@
 //! ## Example Usage
 //!
 //! ```rust,no_run
-//! use ally::tools::{BashTool, ReadFileTool, RigTool};
+//! use vega::tools::{BashTool, ReadFileTool, RigTool};
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {
@@ -114,7 +114,7 @@ pub enum ToolError {
 /// # Example
 ///
 /// ```rust,no_run
-/// use ally::tools::create_all_tools;
+/// use vega::tools::create_all_tools;
 ///
 /// let tools = create_all_tools();
 /// println!("Created {} tools", tools.len());

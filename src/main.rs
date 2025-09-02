@@ -21,26 +21,26 @@ use crate::web::start_web_server_with_logger;
 use agents::chat::ChatAgent;
 use agents::{Agent, AgentConfig};
 use context::ContextStore;
-use logging::{AllyLogger, LogLevel, LoggerConfig};
+use logging::{LogLevel, Logger, LoggerConfig};
 
 #[derive(Parser, Debug)]
 #[command(
-    name = "ally",
+    name = "vega",
     about = "An AI chat agent built with Rust and the Rig framework",
-    long_about = "Ally is a command-line AI chat agent that supports multiple LLM providers including Ollama and OpenRouter. \
+    long_about = "Vega is a command-line AI chat agent that supports multiple LLM providers including Ollama and OpenRouter. \
                   It provides an interactive chat interface with persistent context across sessions.\n\n\
                   Environment Variables:\n\
-                  - ALLY_PROVIDER: Set the LLM provider (ollama, openrouter)\n\
-                  - ALLY_MODEL: Set the model name\n\
-                  - ALLY_EMBEDDING_PROVIDER: Set the embedding provider (openai, ollama, simple)\n\
-                  - ALLY_EMBEDDING_MODEL: Set the embedding model name\n\
-                  - ALLY_CONTEXT_DB: Set the context database path\n\
-                  - ALLY_SESSION_ID: Set the session ID for context sharing\n\
-                  - ALLY_LOG_OUTPUT: Set log output destinations (console, file, vector)\n\
-                  - ALLY_LOG_FILE: Set the log file path\n\
-                  - ALLY_LOG_STRUCTURED: Enable structured JSON logging\n\
-                  - ALLY_LOG_LEVEL: Set log level (error, warn, info, debug, trace)\n\
-                  - ALLY_COMMAND_HISTORY_LENGTH: Set command history length (default: 100)\n\
+                  - VEGA_PROVIDER: Set the LLM provider (ollama, openrouter)\n\
+                  - VEGA_MODEL: Set the model name\n\
+                  - VEGA_EMBEDDING_PROVIDER: Set the embedding provider (openai, ollama, simple)\n\
+                  - VEGA_EMBEDDING_MODEL: Set the embedding model name\n\
+                  - VEGA_CONTEXT_DB: Set the context database path\n\
+                  - VEGA_SESSION_ID: Set the session ID for context sharing\n\
+                  - VEGA_LOG_OUTPUT: Set log output destinations (console, file, vector)\n\
+                  - VEGA_LOG_FILE: Set the log file path\n\
+                  - VEGA_LOG_STRUCTURED: Enable structured JSON logging\n\
+                  - VEGA_LOG_LEVEL: Set log level (error, warn, info, debug, trace)\n\
+                  - VEGA_COMMAND_HISTORY_LENGTH: Set command history length (default: 100)\n\
                   - OPENROUTER_API_KEY: Set the OpenRouter API key\n\
                   - ANTHROPIC_API_KEY: Set the Anthropic API key\n\
                   - OPENAI_API_KEY: Set the OpenAI API key for embeddings"
@@ -51,13 +51,13 @@ struct Args {
     verbose: bool,
 
     /// LLM provider to use (ollama or openrouter)
-    /// Can also be set via ALLY_PROVIDER environment variable
-    #[arg(short, long, env = "ALLY_PROVIDER", default_value = "ollama")]
+    /// Can also be set via VEGA_PROVIDER environment variable
+    #[arg(short, long, env = "VEGA_PROVIDER", default_value = "ollama")]
     provider: String,
 
     /// Model name to use
-    /// Can also be set via ALLY_MODEL environment variable
-    #[arg(short, long, env = "ALLY_MODEL", default_value = "llama3.2")]
+    /// Can also be set via VEGA_MODEL environment variable
+    #[arg(short, long, env = "VEGA_MODEL", default_value = "llama3.2")]
     model: String,
 
     /// OpenRouter API key (required if using openrouter provider)
@@ -71,13 +71,13 @@ struct Args {
     anthropic_api_key: Option<String>,
 
     /// Embedding provider to use (openai, ollama, or simple)
-    /// Can also be set via ALLY_EMBEDDING_PROVIDER environment variable
-    #[arg(long, env = "ALLY_EMBEDDING_PROVIDER", default_value = "simple")]
+    /// Can also be set via VEGA_EMBEDDING_PROVIDER environment variable
+    #[arg(long, env = "VEGA_EMBEDDING_PROVIDER", default_value = "simple")]
     embedding_provider: String,
 
     /// Embedding model name to use
-    /// Can also be set via ALLY_EMBEDDING_MODEL environment variable
-    #[arg(long, env = "ALLY_EMBEDDING_MODEL")]
+    /// Can also be set via VEGA_EMBEDDING_MODEL environment variable
+    #[arg(long, env = "VEGA_EMBEDDING_MODEL")]
     embedding_model: Option<String>,
 
     /// OpenAI API key (required if using openai embedding provider)
@@ -86,13 +86,13 @@ struct Args {
     openai_api_key: Option<String>,
 
     /// Path to the context database file
-    /// Can also be set via ALLY_CONTEXT_DB environment variable
-    #[arg(long, env = "ALLY_CONTEXT_DB", default_value = "./ally_context.db")]
+    /// Can also be set via VEGA_CONTEXT_DB environment variable
+    #[arg(long, env = "VEGA_CONTEXT_DB", default_value = "./vega_context.db")]
     context_db: PathBuf,
 
     /// Session ID for context sharing (generates new if not provided)
-    /// Can also be set via ALLY_SESSION_ID environment variable
-    #[arg(long, env = "ALLY_SESSION_ID")]
+    /// Can also be set via VEGA_SESSION_ID environment variable
+    #[arg(long, env = "VEGA_SESSION_ID")]
     session_id: Option<String>,
 
     /// Port for the web server (default: 3000)
@@ -104,18 +104,18 @@ struct Args {
     yolo: bool,
 
     /// Log output destination (console, file, vector, or combinations like "console,file")
-    /// Can also be set via ALLY_LOG_OUTPUT environment variable
-    #[arg(long, env = "ALLY_LOG_OUTPUT", default_value = "console")]
+    /// Can also be set via VEGA_LOG_OUTPUT environment variable
+    #[arg(long, env = "VEGA_LOG_OUTPUT", default_value = "console")]
     log_output: String,
 
     /// Log file path (required if file logging is enabled)
-    /// Can also be set via ALLY_LOG_FILE environment variable
-    #[arg(long, env = "ALLY_LOG_FILE")]
+    /// Can also be set via VEGA_LOG_FILE environment variable
+    #[arg(long, env = "VEGA_LOG_FILE")]
     log_file: Option<PathBuf>,
 
     /// Enable structured logging (JSON format for file and vector outputs)
-    /// Can also be set via ALLY_LOG_STRUCTURED environment variable
-    #[arg(long, env = "ALLY_LOG_STRUCTURED")]
+    /// Can also be set via VEGA_LOG_STRUCTURED environment variable
+    #[arg(long, env = "VEGA_LOG_STRUCTURED")]
     log_structured: bool,
 
     /// Run in Agent Client Protocol (ACP) mode for editor integration
@@ -123,15 +123,15 @@ struct Args {
     acp: bool,
 
     /// Command history length (default: 100)
-    /// Can also be set via ALLY_COMMAND_HISTORY_LENGTH environment variable
-    #[arg(long, env = "ALLY_COMMAND_HISTORY_LENGTH", default_value = "100")]
+    /// Can also be set via VEGA_COMMAND_HISTORY_LENGTH environment variable
+    #[arg(long, env = "VEGA_COMMAND_HISTORY_LENGTH", default_value = "100")]
     command_history_length: usize,
 }
 
 impl Args {
     /// Display configuration values from command line arguments and environment variables
     fn display_configuration(&self) {
-        println!("🚀 Ally Configuration");
+        println!("🚀 Vega Configuration");
         println!("═══════════════════════════════════════════════════════════════");
 
         // Display command line arguments
@@ -206,17 +206,17 @@ impl Args {
         // Display environment variables
         println!("🌍 Environment Variables:");
         let env_vars = [
-            ("ALLY_PROVIDER", "LLM provider"),
-            ("ALLY_MODEL", "LLM model"),
-            ("ALLY_EMBEDDING_PROVIDER", "Embedding provider"),
-            ("ALLY_EMBEDDING_MODEL", "Embedding model"),
-            ("ALLY_CONTEXT_DB", "Context database path"),
-            ("ALLY_SESSION_ID", "Session ID"),
-            ("ALLY_LOG_OUTPUT", "Log output destinations"),
-            ("ALLY_LOG_FILE", "Log file path"),
-            ("ALLY_LOG_STRUCTURED", "Structured logging"),
-            ("ALLY_LOG_LEVEL", "Log level"),
-            ("ALLY_COMMAND_HISTORY_LENGTH", "Command history length"),
+            ("VEGA_PROVIDER", "LLM provider"),
+            ("VEGA_MODEL", "LLM model"),
+            ("VEGA_EMBEDDING_PROVIDER", "Embedding provider"),
+            ("VEGA_EMBEDDING_MODEL", "Embedding model"),
+            ("VEGA_CONTEXT_DB", "Context database path"),
+            ("VEGA_SESSION_ID", "Session ID"),
+            ("VEGA_LOG_OUTPUT", "Log output destinations"),
+            ("VEGA_LOG_FILE", "Log file path"),
+            ("VEGA_LOG_STRUCTURED", "Structured logging"),
+            ("VEGA_LOG_LEVEL", "Log level"),
+            ("VEGA_COMMAND_HISTORY_LENGTH", "Command history length"),
             ("OPENROUTER_API_KEY", "OpenRouter API key"),
             ("ANTHROPIC_API_KEY", "Anthropic API key"),
             ("OPENAI_API_KEY", "OpenAI API key"),
@@ -312,7 +312,7 @@ async fn main() -> Result<()> {
             logger_config = logger_config.with_file_path(Some(log_file.clone()));
         } else {
             return Err(anyhow::anyhow!(
-                "File logging requested but no log file path provided. Use --log-file or ALLY_LOG_FILE."
+                "File logging requested but no log file path provided. Use --log-file or VEGA_LOG_FILE."
             ));
         }
     }
@@ -322,37 +322,35 @@ async fn main() -> Result<()> {
         logger_config = logger_config.with_vector_store(true);
     }
 
-    let mut ally_logger = AllyLogger::new(logger_config)?;
+    let mut logger = Logger::new(logger_config)?;
 
     // Add context store and embedding service for vector logging
     if log_outputs.contains(&"vector") {
         let embedding_service = std::sync::Arc::new(embedding_provider.create_service());
-        ally_logger = ally_logger
+        logger = logger
             .with_context_store(context_arc.clone())
             .with_embedding_service(embedding_service);
     }
 
-    let ally_logger = std::sync::Arc::new(ally_logger);
+    let logger = std::sync::Arc::new(logger);
 
     // Log startup information with custom logger
     if args.verbose {
-        ally_logger
-            .info("Verbose logging enabled".to_string())
-            .await?;
-        ally_logger
+        logger.info("Verbose logging enabled".to_string()).await?;
+        logger
             .debug("Verbose logging enabled with custom logger".to_string())
             .await?;
     }
 
-    ally_logger
+    logger
         .info(format!("Context database: {:?}", args.context_db))
         .await?;
     if is_new_session {
-        ally_logger
+        logger
             .info(format!("Generated new session ID: {}", session_id))
             .await?;
     } else {
-        ally_logger
+        logger
             .info(format!("Using existing session ID: {}", session_id))
             .await?;
     }
@@ -361,7 +359,7 @@ async fn main() -> Result<()> {
     let instruction_loader = AgentInstructionLoader::new()?;
     let agent_instructions = match instruction_loader.discover_instructions()? {
         Some(instructions) => {
-            ally_logger
+            logger
                 .info(format!(
                     "Loaded agent instructions from: {} ({})",
                     instructions.source_path.display(),
@@ -371,8 +369,8 @@ async fn main() -> Result<()> {
             Some(instructions)
         }
         None => {
-            ally_logger
-                .debug("No AGENTS.md or ALLY.md files found in directory tree".to_string())
+            logger
+                .debug("No AGENTS.md or VEGA.md files found in directory tree".to_string())
                 .await?;
             None
         }
@@ -403,17 +401,17 @@ async fn main() -> Result<()> {
 
     // Check if running in ACP mode
     if args.acp {
-        ally_logger
-            .info("Starting Ally in Agent Client Protocol (ACP) mode".to_string())
+        logger
+            .info("Starting Vega in Agent Client Protocol (ACP) mode".to_string())
             .await?;
 
         // Run the ACP server
-        return crate::acp::start_acp_server(config, context_arc, ally_logger).await;
+        return crate::acp::start_acp_server(config, context_arc, logger).await;
     }
 
     // Start web server in background
     let web_context = context_arc.clone();
-    let web_logger = ally_logger.clone();
+    let web_logger = logger.clone();
     let web_port = args.web_port;
     tokio::spawn(async move {
         if let Err(e) = start_web_server_with_logger(web_context, Some(web_logger), web_port).await
@@ -422,7 +420,7 @@ async fn main() -> Result<()> {
         }
     });
 
-    ally_logger
+    logger
         .info(format!(
             "Web interface available at http://127.0.0.1:{}",
             args.web_port
@@ -430,7 +428,7 @@ async fn main() -> Result<()> {
         .await?;
 
     // Create the chat agent
-    let agent = ChatAgent::new(config)?.with_logger(ally_logger.clone());
+    let agent = ChatAgent::new(config)?.with_logger(logger.clone());
 
     // Main session loop to handle session switching
     let mut current_session_id = session_id;
@@ -476,12 +474,12 @@ mod tests {
     fn test_default_args() {
         // Temporarily unset environment variables for this test
         unsafe {
-            std::env::remove_var("ALLY_PROVIDER");
-            std::env::remove_var("ALLY_MODEL");
+            std::env::remove_var("VEGA_PROVIDER");
+            std::env::remove_var("VEGA_MODEL");
             std::env::remove_var("OPENROUTER_API_KEY");
         }
 
-        let args = Args::try_parse_from(&["ally"]).unwrap();
+        let args = Args::try_parse_from(&["vega"]).unwrap();
 
         assert_eq!(args.verbose, false);
         assert_eq!(args.provider, "ollama");
@@ -492,47 +490,47 @@ mod tests {
 
     #[test]
     fn test_verbose_flag() {
-        let args = Args::try_parse_from(&["ally", "--verbose"]).unwrap();
+        let args = Args::try_parse_from(&["vega", "--verbose"]).unwrap();
         assert_eq!(args.verbose, true);
 
-        let args = Args::try_parse_from(&["ally", "-v"]).unwrap();
+        let args = Args::try_parse_from(&["vega", "-v"]).unwrap();
         assert_eq!(args.verbose, true);
     }
 
     #[test]
     fn test_provider_option() {
-        let args = Args::try_parse_from(&["ally", "--provider", "openrouter"]).unwrap();
+        let args = Args::try_parse_from(&["vega", "--provider", "openrouter"]).unwrap();
         assert_eq!(args.provider, "openrouter");
 
-        let args = Args::try_parse_from(&["ally", "-p", "ollama"]).unwrap();
+        let args = Args::try_parse_from(&["vega", "-p", "ollama"]).unwrap();
         assert_eq!(args.provider, "ollama");
     }
 
     #[test]
     fn test_model_option() {
-        let args = Args::try_parse_from(&["ally", "--model", "gpt-4"]).unwrap();
+        let args = Args::try_parse_from(&["vega", "--model", "gpt-4"]).unwrap();
         assert_eq!(args.model, "gpt-4");
 
-        let args = Args::try_parse_from(&["ally", "-m", "llama3.1"]).unwrap();
+        let args = Args::try_parse_from(&["vega", "-m", "llama3.1"]).unwrap();
         assert_eq!(args.model, "llama3.1");
     }
 
     #[test]
     fn test_openrouter_api_key() {
-        let args = Args::try_parse_from(&["ally", "--openrouter-api-key", "test-key"]).unwrap();
+        let args = Args::try_parse_from(&["vega", "--openrouter-api-key", "test-key"]).unwrap();
         assert_eq!(args.openrouter_api_key, Some("test-key".to_string()));
     }
 
     #[test]
     fn test_anthropic_api_key() {
-        let args = Args::try_parse_from(&["ally", "--anthropic-api-key", "test-key"]).unwrap();
+        let args = Args::try_parse_from(&["vega", "--anthropic-api-key", "test-key"]).unwrap();
         assert_eq!(args.anthropic_api_key, Some("test-key".to_string()));
     }
 
     #[test]
     fn test_combined_args() {
         let args = Args::try_parse_from(&[
-            "ally",
+            "vega",
             "--verbose",
             "--provider",
             "openrouter",

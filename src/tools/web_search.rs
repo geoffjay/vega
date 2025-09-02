@@ -57,7 +57,7 @@ impl WebSearchTool {
         let response = self
             .client
             .get(&url)
-            .header("User-Agent", "ally-agent/0.1.0")
+            .header("User-Agent", "vega-agent/0.1.0")
             .send()
             .await?;
 

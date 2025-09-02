@@ -206,14 +206,14 @@ impl LogEntry {
 }
 
 /// Custom logger that can write to multiple destinations
-pub struct AllyLogger {
+pub struct Logger {
     config: LoggerConfig,
     file_writer: Option<Arc<Mutex<std::fs::File>>>,
     context_store: Option<Arc<ContextStore>>,
     embedding_service: Option<Arc<EmbeddingService>>,
 }
 
-impl AllyLogger {
+impl Logger {
     /// Create a new logger with the given configuration
     pub fn new(config: LoggerConfig) -> Result<Self> {
         let file_writer = if let Some(ref file_path) = config.file_path {
@@ -344,7 +344,7 @@ impl AllyLogger {
             let embedding = embedding_service.embed(&content).await?;
 
             let context_entry = crate::context::ContextEntry::new(
-                "ally_logger".to_string(),
+                "vega_logger".to_string(),
                 entry.session_id.clone(),
                 content,
                 "log".to_string(),
@@ -472,7 +472,7 @@ impl AllyLogger {
 
 /// Macro for easier logging with file and line information
 #[macro_export]
-macro_rules! ally_log {
+macro_rules! vega_log {
     ($logger:expr, $level:expr, $msg:expr) => {
         $logger
             .log(
@@ -510,7 +510,7 @@ mod tests {
     #[tokio::test]
     async fn test_logger_creation() {
         let config = LoggerConfig::new("test_session".to_string());
-        let logger = AllyLogger::new(config);
+        let logger = Logger::new(config);
         assert!(logger.is_ok());
     }
 
@@ -518,7 +518,7 @@ mod tests {
     async fn test_console_logging() {
         let config =
             LoggerConfig::new("test_session".to_string()).with_console_level(LogLevel::Debug);
-        let logger = AllyLogger::new(config).unwrap();
+        let logger = Logger::new(config).unwrap();
 
         let result = logger.info("Test message".to_string()).await;
         assert!(result.is_ok());
@@ -532,7 +532,7 @@ mod tests {
         let config = LoggerConfig::new("test_session".to_string())
             .with_file_path(Some(log_file.clone()))
             .with_structured(true);
-        let logger = AllyLogger::new(config).unwrap();
+        let logger = Logger::new(config).unwrap();
 
         logger.info("Test file message".to_string()).await.unwrap();
 

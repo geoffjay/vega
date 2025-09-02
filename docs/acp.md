@@ -1,39 +1,39 @@
 # Agent Client Protocol (ACP) Integration
 
-Ally now supports the Agent Client Protocol (ACP), allowing it to be used as an AI coding agent in ACP-compatible editors like Zed.
+Vega now supports the Agent Client Protocol (ACP), allowing it to be used as an AI coding agent in ACP-compatible editors like Zed.
 
 ## What is ACP?
 
 The Agent Client Protocol standardizes communication between code editors and AI coding agents. This allows any ACP-compliant agent to work with any ACP-compliant editor, reducing integration overhead and promoting interoperability.
 
-## Using Ally with ACP
+## Using Vega with ACP
 
-### Running Ally in ACP Mode
+### Running Vega in ACP Mode
 
-To run Ally in ACP mode, use the `--acp` flag:
+To run Vega in ACP mode, use the `--acp` flag:
 
 ```bash
-ally --acp
+vega --acp
 ```
 
-This will start Ally as an ACP server that communicates over standard input/output (stdio) using JSON-RPC.
+This will start Vega as an ACP server that communicates over standard input/output (stdio) using JSON-RPC.
 
 ### Configuration
 
-All the standard Ally configuration options are available in ACP mode:
+All the standard Vega configuration options are available in ACP mode:
 
 ```bash
 # Use with OpenRouter
-ally --acp --provider openrouter --model openai/gpt-4 --openrouter-api-key YOUR_KEY
+vega --acp --provider openrouter --model openai/gpt-4 --openrouter-api-key YOUR_KEY
 
 # Use with Ollama
-ally --acp --provider ollama --model llama3.2
+vega --acp --provider ollama --model llama3.2
 
 # Enable verbose logging
-ally --acp --verbose
+vega --acp --verbose
 
 # Use custom context database
-ally --acp --context-db /path/to/your/context.db
+vega --acp --context-db /path/to/your/context.db
 ```
 
 ### Supported Features
@@ -57,15 +57,15 @@ The ACP integration currently supports:
 
 ### Zed Editor
 
-Ally can be used with Zed editor through the ACP integration. Configure Zed to use Ally as an agent:
+Vega can be used with Zed editor through the ACP integration. Configure Zed to use Vega as an agent:
 
-1. Build Ally: `cargo build --release`
-2. Configure Zed to use the Ally binary with the `--acp` flag
+1. Build Vega: `cargo build --release`
+2. Configure Zed to use the Vega binary with the `--acp` flag
 3. Set your preferred provider and model options
 
 ### Other ACP-Compatible Editors
 
-Any editor that supports the Agent Client Protocol can use Ally. Refer to your editor's documentation for configuring ACP agents.
+Any editor that supports the Agent Client Protocol can use Vega. Refer to your editor's documentation for configuring ACP agents.
 
 ## Development
 
@@ -73,10 +73,10 @@ Any editor that supports the Agent Client Protocol can use Ally. Refer to your e
 
 The ACP integration consists of:
 
-- `AllyAcpAgent`: Implements the `acp::Agent` trait for handling agent-side operations
-- `AllyAcpClient`: Implements the `acp::Client` trait for handling client-side operations
+- `AcpAgent`: Implements the `acp::Agent` trait for handling agent-side operations
+- `AcpClient`: Implements the `acp::Client` trait for handling client-side operations
 - Session management with atomic counters for thread safety
-- Integration with Ally's existing chat agent and context system
+- Integration with Vega's existing chat agent and context system
 
 ### Key Files
 
@@ -93,10 +93,10 @@ To test the ACP integration:
 cargo build
 
 # Test ACP mode (will wait for JSON-RPC input)
-./target/debug/ally --acp
+./target/debug/vega --acp
 
 # Test with example client (if available)
-cargo run --example client -- ./target/debug/ally --acp
+cargo run --example client -- ./target/debug/vega --acp
 ```
 
 ### Protocol Compliance
@@ -122,12 +122,12 @@ The implementation follows the ACP specification:
 Enable verbose logging to see detailed ACP operations:
 
 ```bash
-ally --acp --verbose
+vega --acp --verbose
 ```
 
 ### Logs
 
-ACP operations are logged through Ally's standard logging system. Check logs for:
+ACP operations are logged through Vega's standard logging system. Check logs for:
 
 - Session creation and management
 - File operation requests

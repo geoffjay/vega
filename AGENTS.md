@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This is the Ally AI agent project, built with Rust and the Rig framework. It provides an interactive chat interface with tool support for various tasks.
+This is the Vega AI agent project, built with Rust and the Rig framework. It provides an interactive chat interface with tool support for various tasks.
 
 ## Setup Commands
 

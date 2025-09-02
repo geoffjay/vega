@@ -16,16 +16,16 @@ use tracing::{debug, error, info, warn};
 use crate::agents::AgentConfig;
 use crate::agents::chat::ChatAgent;
 use crate::context::ContextStore;
-use crate::logging::AllyLogger;
+use crate::logging::Logger;
 
-/// ACP Agent implementation for Ally
-pub struct AllyAcpAgent {
-    /// Configuration for the underlying Ally agent
+/// ACP Agent implementation for Vega
+pub struct AcpAgent {
+    /// Configuration for the underlying Vega agent
     config: AgentConfig,
     /// Context store for conversation history
     context_store: Arc<ContextStore>,
     /// Logger for ACP operations
-    logger: Arc<AllyLogger>,
+    logger: Arc<Logger>,
     /// Channel for sending session updates to the client
     session_update_tx: mpsc::UnboundedSender<(acp::SessionNotification, oneshot::Sender<()>)>,
     /// Counter for generating session IDs
@@ -34,12 +34,12 @@ pub struct AllyAcpAgent {
     cwd: Arc<Mutex<PathBuf>>,
 }
 
-impl AllyAcpAgent {
+impl AcpAgent {
     /// Create a new ACP agent instance
     pub fn new(
         config: AgentConfig,
         context_store: Arc<ContextStore>,
-        logger: Arc<AllyLogger>,
+        logger: Arc<Logger>,
         session_update_tx: mpsc::UnboundedSender<(acp::SessionNotification, oneshot::Sender<()>)>,
     ) -> Self {
         Self {
@@ -182,7 +182,7 @@ impl AllyAcpAgent {
     }
 }
 
-impl acp::Agent for AllyAcpAgent {
+impl acp::Agent for AcpAgent {
     async fn initialize(
         &self,
         arguments: acp::InitializeRequest,
@@ -317,13 +317,13 @@ impl acp::Agent for AllyAcpAgent {
 /// ACP Client implementation for handling client-side operations
 pub struct AllyAcpClient {
     /// Logger for client operations
-    logger: Arc<AllyLogger>,
+    logger: Arc<Logger>,
     /// Current working directory
     cwd: Arc<Mutex<PathBuf>>,
 }
 
 impl AllyAcpClient {
-    pub fn new(logger: Arc<AllyLogger>) -> Self {
+    pub fn new(logger: Arc<Logger>) -> Self {
         Self {
             logger,
             cwd: Arc::new(Mutex::new(std::env::current_dir().unwrap_or_default())),
@@ -427,7 +427,7 @@ impl acp::Client for AllyAcpClient {
 pub async fn start_acp_server(
     config: AgentConfig,
     context_store: Arc<ContextStore>,
-    logger: Arc<AllyLogger>,
+    logger: Arc<Logger>,
 ) -> Result<()> {
     info!("Starting ACP server on stdio");
 
@@ -438,7 +438,7 @@ pub async fn start_acp_server(
     let (session_update_tx, mut session_update_rx) = mpsc::unbounded_channel();
 
     // Create the ACP agent
-    let agent = AllyAcpAgent::new(config, context_store, logger.clone(), session_update_tx);
+    let agent = AcpAgent::new(config, context_store, logger.clone(), session_update_tx);
 
     // Use LocalSet for non-Send futures
     let local_set = tokio::task::LocalSet::new();
@@ -497,11 +497,11 @@ mod tests {
         Ok(Arc::new(context))
     }
 
-    async fn create_test_logger() -> Result<Arc<AllyLogger>> {
+    async fn create_test_logger() -> Result<Arc<Logger>> {
         let logger_config = LoggerConfig::new("test-session".to_string())
             .with_console_level(LogLevel::Info)
             .with_console_output(false);
-        let logger = AllyLogger::new(logger_config)?;
+        let logger = Logger::new(logger_config)?;
         Ok(Arc::new(logger))
     }
 
@@ -512,7 +512,7 @@ mod tests {
         let logger = create_test_logger().await?;
         let (tx, _rx) = mpsc::unbounded_channel();
 
-        let agent = AllyAcpAgent::new(config, context_store, logger, tx);
+        let agent = AcpAgent::new(config, context_store, logger, tx);
 
         // Test initialization
         let init_request = acp::InitializeRequest {

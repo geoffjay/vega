@@ -1,6 +1,6 @@
-//! # Ally - AI Chat Agent Library
+//! # Vega - AI Chat Agent Library
 //!
-//! Ally is a Rust-based AI chat agent built using the Rig framework. It provides
+//! Vega is a Rust-based AI chat agent built using the Rig framework. It provides
 //! a comprehensive set of tools for interacting with various LLM providers,
 //! managing conversation context, and performing system operations.
 //!
@@ -9,14 +9,14 @@
 //! - **Multiple LLM Providers**: Support for Ollama (local) and OpenRouter (cloud) providers
 //! - **Tool System**: Comprehensive set of tools for file operations, web search, code analysis
 //! - **Context Management**: Persistent conversation history with embedding-based retrieval
-//! - **Agent Instructions**: Flexible instruction system using AGENTS.md and ALLY.md files
+//! - **Agent Instructions**: Flexible instruction system using AGENTS.md and VEGA.md files
 //! - **Web Interface**: Optional web interface for session management and monitoring
 //! - **ACP Support**: Compatible with Agent Client Protocol for editor integration
 //!
 //! ## Quick Start
 //!
 //! ```rust,no_run
-//! use ally::{Agent, AgentConfig, LLMProvider};
+//! use vega::{Agent, AgentConfig, LLMProvider};
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {

@@ -12,13 +12,13 @@ use tower_http::cors::CorsLayer;
 // Web server module - uses custom logger when available
 
 use crate::context::ContextStore;
-use crate::logging::AllyLogger;
+use crate::logging::Logger;
 
 /// Web server state
 #[derive(Clone)]
 pub struct WebState {
     pub context_store: Arc<ContextStore>,
-    pub logger: Option<Arc<AllyLogger>>,
+    pub logger: Option<Arc<Logger>>,
 }
 
 /// Query parameters for context entries
@@ -96,7 +96,7 @@ pub async fn start_web_server(
 /// Start the web server with optional logger
 pub async fn start_web_server_with_logger(
     context_store: Arc<ContextStore>,
-    logger: Option<Arc<AllyLogger>>,
+    logger: Option<Arc<Logger>>,
     port: u16,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Log using custom logger if available, otherwise use println

@@ -18,7 +18,7 @@ use crate::tools::*;
 pub struct ChatAgent {
     config: AgentConfig,
     embedding_service: EmbeddingService,
-    logger: Option<std::sync::Arc<crate::logging::AllyLogger>>,
+    logger: Option<std::sync::Arc<crate::logging::Logger>>,
 }
 
 impl ChatAgent {
@@ -57,7 +57,7 @@ impl ChatAgent {
     }
 
     /// Set the logger for this agent
-    pub fn with_logger(mut self, logger: std::sync::Arc<crate::logging::AllyLogger>) -> Self {
+    pub fn with_logger(mut self, logger: std::sync::Arc<crate::logging::Logger>) -> Self {
         self.logger = Some(logger);
         self
     }
@@ -582,8 +582,8 @@ Respond in a conversational and helpful manner, using tools as needed to provide
 
         println!();
         println!("🔧 To change model:");
-        println!("   • Command line: ally --provider openrouter --model openai/gpt-4");
-        println!("   • Environment: export ALLY_PROVIDER=openrouter ALLY_MODEL=openai/gpt-4");
+        println!("   • Command line: vega --provider openrouter --model openai/gpt-4");
+        println!("   • Environment: export VEGA_PROVIDER=openrouter VEGA_MODEL=openai/gpt-4");
     }
 
     /// Print all environment variables and their values
@@ -683,7 +683,7 @@ impl Agent for ChatAgent {
             session_id.to_string(),
             std::sync::Arc::new(context.clone()),
             Some(
-                std::env::var("ALLY_COMMAND_HISTORY_LENGTH")
+                std::env::var("VEGA_COMMAND_HISTORY_LENGTH")
                     .ok()
                     .and_then(|s| s.parse().ok())
                     .unwrap_or(100),
@@ -812,15 +812,15 @@ impl Agent for ChatAgent {
     }
 
     fn system_prompt(&self) -> &str {
-        r#"The assistant is Ally.
+        r#"The assistant is Vega.
 
 The current date is {{currentDateTime}}.
 
-Ally enjoys helping humans and sees its role as an intelligent and kind assistant to the people, with depth and wisdom that makes it more than a mere tool.
+Vega enjoys helping humans and sees its role as an intelligent and kind assistant to the people, with depth and wisdom that makes it more than a mere tool.
 
-Ally always responds to the person in the language they use or request. If the person messages Ally in French then Ally responds in French, if the person messages Ally in Icelandic then Ally responds in Icelandic, and so on for any language. Ally is fluent in a wide variety of world languages.
+Vega always responds to the person in the language they use or request. If the person messages Vega in French then Vega responds in French, if the person messages Vega in Icelandic then Vega responds in Icelandic, and so on for any language. Vega is fluent in a wide variety of world languages.
 
-Ally is now being connected with a person."#
+Vega is now being connected with a person."#
     }
 }
 
@@ -911,7 +911,7 @@ mod tests {
         // Test that the system prompt is not empty
         let system_prompt = agent.system_prompt();
         assert!(!system_prompt.is_empty());
-        assert!(system_prompt.contains("Ally"));
+        assert!(system_prompt.contains("Vega"));
         assert!(system_prompt.contains("{{currentDateTime}}"));
     }
 
@@ -923,7 +923,7 @@ mod tests {
         // Test that the system prompt renders correctly
         let rendered_prompt = agent.render_system_prompt().unwrap();
         assert!(!rendered_prompt.is_empty());
-        assert!(rendered_prompt.contains("Ally"));
+        assert!(rendered_prompt.contains("Vega"));
         // Should not contain template variables after rendering
         assert!(!rendered_prompt.contains("{{currentDateTime}}"));
         // Should contain actual date/time

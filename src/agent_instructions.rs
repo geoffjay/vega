@@ -7,7 +7,7 @@
 //! ## File Types
 //!
 //! - **`AGENTS.md`**: General agent instructions that work with any AI agent
-//! - **`ALLY.md`**: Ally-specific instructions that take priority when present
+//! - **`ALLY.md`**: Vega-specific instructions that take priority when present
 //!
 //! ## Discovery Process
 //!
@@ -20,7 +20,7 @@
 //! ## Example Usage
 //!
 //! ```rust,no_run
-//! use ally::agent_instructions::{AgentInstructionLoader, format_instructions_for_prompt};
+//! use vega::agent_instructions::{AgentInstructionLoader, format_instructions_for_prompt};
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {
@@ -60,8 +60,8 @@ pub struct AgentInstructions {
 pub enum InstructionFileType {
     /// Standard AGENTS.md file
     Agents,
-    /// Ally-specific ALLY.md file
-    Ally,
+    /// Vega-specific VEGA.md file
+    Vega,
 }
 
 impl InstructionFileType {
@@ -69,7 +69,7 @@ impl InstructionFileType {
     pub fn filename(&self) -> &'static str {
         match self {
             InstructionFileType::Agents => "AGENTS.md",
-            InstructionFileType::Ally => "ALLY.md",
+            InstructionFileType::Vega => "VEGA.md",
         }
     }
 }
@@ -114,12 +114,12 @@ impl AgentInstructionLoader {
                 current_dir.display()
             );
 
-            // Check for ALLY.md first (Ally-specific takes priority)
-            let ally_path = current_dir.join("ALLY.md");
-            if ally_path.exists() && ally_path.is_file() {
-                info!("Found ALLY.md at: {}", ally_path.display());
+            // Check for VEGA.md first (Vega-specific takes priority)
+            let vega_path = current_dir.join("VEGA.md");
+            if vega_path.exists() && vega_path.is_file() {
+                info!("Found VEGA.md at: {}", vega_path.display());
                 return self
-                    .load_instruction_file(&ally_path, InstructionFileType::Ally)
+                    .load_instruction_file(&vega_path, InstructionFileType::Vega)
                     .map(Some);
             }
 
@@ -178,7 +178,7 @@ impl AgentInstructionLoader {
     pub fn load_from_path<P: AsRef<Path>>(&self, path: P) -> Result<AgentInstructions> {
         let path = path.as_ref();
         let file_type = match path.file_name().and_then(|n| n.to_str()) {
-            Some("ALLY.md") => InstructionFileType::Ally,
+            Some("VEGA.md") => InstructionFileType::Vega,
             Some("AGENTS.md") => InstructionFileType::Agents,
             _ => {
                 // Default to AGENTS type for unknown files
@@ -228,7 +228,7 @@ mod tests {
     #[test]
     fn test_instruction_file_type_filename() {
         assert_eq!(InstructionFileType::Agents.filename(), "AGENTS.md");
-        assert_eq!(InstructionFileType::Ally.filename(), "ALLY.md");
+        assert_eq!(InstructionFileType::Vega.filename(), "VEGA.md");
     }
 
     #[test]
@@ -254,19 +254,19 @@ mod tests {
     }
 
     #[test]
-    fn test_discover_instructions_ally_md() {
+    fn test_discover_instructions_vega_md() {
         let temp_dir = tempdir().unwrap();
-        let ally_path = temp_dir.path().join("ALLY.md");
-        fs::write(&ally_path, "# Ally Instructions\n\nThis is a test.").unwrap();
+        let vega_path = temp_dir.path().join("VEGA.md");
+        fs::write(&vega_path, "# Vega Instructions\n\nThis is a test.").unwrap();
 
         let loader = AgentInstructionLoader::from_dir(temp_dir.path());
         let result = loader.discover_instructions().unwrap();
 
         assert!(result.is_some());
         let instructions = result.unwrap();
-        assert_eq!(instructions.file_type, InstructionFileType::Ally);
-        assert_eq!(instructions.source_path, ally_path);
-        assert!(instructions.content.contains("Ally Instructions"));
+        assert_eq!(instructions.file_type, InstructionFileType::Vega);
+        assert_eq!(instructions.source_path, vega_path);
+        assert!(instructions.content.contains("Vega Instructions"));
     }
 
     #[test]
@@ -290,9 +290,9 @@ mod tests {
         let temp_dir = tempdir().unwrap();
 
         // Create both files
-        let ally_path = temp_dir.path().join("ALLY.md");
+        let vega_path = temp_dir.path().join("VEGA.md");
         let agents_path = temp_dir.path().join("AGENTS.md");
-        fs::write(&ally_path, "# Ally Instructions").unwrap();
+        fs::write(&vega_path, "# Vega Instructions").unwrap();
         fs::write(&agents_path, "# Agent Instructions").unwrap();
 
         let loader = AgentInstructionLoader::from_dir(temp_dir.path());
@@ -301,8 +301,8 @@ mod tests {
         assert!(result.is_some());
         let instructions = result.unwrap();
         // ALLY.md should take priority
-        assert_eq!(instructions.file_type, InstructionFileType::Ally);
-        assert_eq!(instructions.source_path, ally_path);
+        assert_eq!(instructions.file_type, InstructionFileType::Vega);
+        assert_eq!(instructions.source_path, vega_path);
     }
 
     #[test]
@@ -329,32 +329,32 @@ mod tests {
     #[test]
     fn test_load_from_path() {
         let temp_dir = tempdir().unwrap();
-        let ally_path = temp_dir.path().join("ALLY.md");
-        fs::write(&ally_path, "# Custom Ally Instructions").unwrap();
+        let vega_path = temp_dir.path().join("VEGA.md");
+        fs::write(&vega_path, "# Custom Vega Instructions").unwrap();
 
         let loader = AgentInstructionLoader::from_dir(temp_dir.path());
-        let result = loader.load_from_path(&ally_path).unwrap();
+        let result = loader.load_from_path(&vega_path).unwrap();
 
-        assert_eq!(result.file_type, InstructionFileType::Ally);
-        assert_eq!(result.source_path, ally_path);
-        assert!(result.content.contains("Custom Ally Instructions"));
+        assert_eq!(result.file_type, InstructionFileType::Vega);
+        assert_eq!(result.source_path, vega_path);
+        assert!(result.content.contains("Custom Vega Instructions"));
     }
 
     #[test]
     fn test_format_instructions_for_prompt() {
         let temp_dir = tempdir().unwrap();
-        let ally_path = temp_dir.path().join("ALLY.md");
+        let vega_path = temp_dir.path().join("VEGA.md");
 
         let instructions = AgentInstructions {
             content: "# Test Instructions\n\nThis is a test.".to_string(),
-            source_path: ally_path.clone(),
-            file_type: InstructionFileType::Ally,
+            source_path: vega_path.clone(),
+            file_type: InstructionFileType::Vega,
         };
 
         let formatted = format_instructions_for_prompt(&instructions);
 
         assert!(formatted.contains("Agent Instructions"));
-        assert!(formatted.contains(&ally_path.display().to_string()));
+        assert!(formatted.contains(&vega_path.display().to_string()));
         assert!(formatted.contains("Test Instructions"));
         assert!(formatted.contains("This is a test."));
         assert!(formatted.ends_with('\n'));

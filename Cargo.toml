@@ -1,14 +1,14 @@
 [package]
-name = "ally"
+name = "vega"
 version = "0.1.0"
 edition = "2024"
 
 [lib]
-name = "ally"
+name = "vega"
 path = "src/lib.rs"
 
 [[bin]]
-name = "ally"
+name = "vega"
 path = "src/main.rs"
 
 [dependencies]

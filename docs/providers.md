@@ -1,10 +1,10 @@
 # Providers and Models Documentation
 
-This document describes the available LLM providers and models supported by the Ally AI agent system, along with recommendations for different use cases.
+This document describes the available LLM providers and models supported by the Vega AI agent system, along with recommendations for different use cases.
 
 ## Overview
 
-Ally supports multiple LLM providers to give you flexibility in choosing between local and cloud-based models. Each provider has different strengths, costs, and requirements.
+Vega supports multiple LLM providers to give you flexibility in choosing between local and cloud-based models. Each provider has different strengths, costs, and requirements.
 
 ## Supported Providers
 
@@ -216,7 +216,7 @@ cargo run -- --provider openrouter --model "openai/gpt-4" --openrouter-api-key "
 
 ### 3. Embedding Providers
 
-For context awareness and semantic search, Ally supports multiple embedding providers:
+For context awareness and semantic search, Vega supports multiple embedding providers:
 
 #### OpenAI Embeddings
 
@@ -276,8 +276,8 @@ cargo run -- --provider anthropic \
 
 ```bash
 # Provider configuration
-export ALLY_PROVIDER="anthropic"
-export ALLY_MODEL="claude-3-5-sonnet-20241022"
+export VEGA_PROVIDER="anthropic"
+export VEGA_MODEL="claude-3-5-sonnet-20241022"
 
 # API keys
 export ANTHROPIC_API_KEY="your-anthropic-key"
@@ -285,8 +285,8 @@ export OPENROUTER_API_KEY="your-openrouter-key"
 export OPENAI_API_KEY="your-openai-key"  # For embeddings
 
 # Embedding configuration
-export ALLY_EMBEDDING_PROVIDER="openai"
-export ALLY_EMBEDDING_MODEL="text-embedding-3-small"
+export VEGA_EMBEDDING_PROVIDER="openai"
+export VEGA_EMBEDDING_MODEL="text-embedding-3-small"
 
 # Run with environment configuration
 cargo run
@@ -297,7 +297,7 @@ cargo run
 While not currently implemented, future versions may support configuration files:
 
 ```toml
-# ally.toml (planned)
+# vega.toml (planned)
 [provider]
 name = "anthropic"
 model = "claude-3-5-sonnet-20241022"
@@ -357,7 +357,7 @@ export OLLAMA_MAX_LOADED_MODELS=2
 
 ```bash
 # Use faster models for development
-export ALLY_MODEL="openai/gpt-3.5-turbo"
+export VEGA_MODEL="openai/gpt-3.5-turbo"
 
 # Reduce token limits for faster responses
 cargo run -- --max-tokens 1000

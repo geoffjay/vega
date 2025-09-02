@@ -1,4 +1,4 @@
-# Ally - AI Chat Agent
+# Vega - AI Chat Agent
 
 An AI chat agent built with Rust using the [Rig framework](https://github.com/0xPlaygrounds/rig), inspired by the Go implementation at [how-to-build-a-coding-agent](https://github.com/ghuntley/how-to-build-a-coding-agent).
 
@@ -32,7 +32,7 @@ An AI chat agent built with Rust using the [Rig framework](https://github.com/0x
 
    ```bash
    git clone <repository-url>
-   cd ally
+   cd vega
    ```
 
 2. Build the project:
@@ -49,7 +49,7 @@ An AI chat agent built with Rust using the [Rig framework](https://github.com/0x
 cargo run
 
 # Or with the built binary
-./target/release/ally
+./target/release/vega
 ```
 
 ### Using OpenRouter
@@ -81,17 +81,17 @@ cargo run -- --provider openrouter --model "openai/gpt-4"
 
 ### Agent Client Protocol (ACP) Mode
 
-Ally supports the Agent Client Protocol, allowing it to be used as an AI coding agent in compatible editors like Zed:
+Vega supports the Agent Client Protocol, allowing it to be used as an AI coding agent in compatible editors like Zed:
 
 ```bash
-# Run Ally in ACP mode
-ally --acp
+# Run Vega in ACP mode
+vega --acp
 
 # ACP mode with specific provider and model
-ally --acp --provider openrouter --model openai/gpt-4 --openrouter-api-key YOUR_KEY
+vega --acp --provider openrouter --model openai/gpt-4 --openrouter-api-key YOUR_KEY
 
 # ACP mode with Ollama
-ally --acp --provider ollama --model llama3.2
+vega --acp --provider ollama --model llama3.2
 ```
 
 For detailed ACP integration information, see [ACP_INTEGRATION.md](ACP_INTEGRATION.md).
@@ -99,7 +99,7 @@ For detailed ACP integration information, see [ACP_INTEGRATION.md](ACP_INTEGRATI
 ### Full Command Reference
 
 ```
-Usage: ally [OPTIONS]
+Usage: vega [OPTIONS]
 
 Options:
   -v, --verbose                        Enable verbose logging

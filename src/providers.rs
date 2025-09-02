@@ -1,7 +1,7 @@
 //! # LLM Provider Implementations
 //!
 //! This module provides abstractions over different Large Language Model providers,
-//! allowing the Ally agent to work with both local and cloud-based models.
+//! allowing the Vega agent to work with both local and cloud-based models.
 //!
 //! ## Supported Providers
 //!
@@ -12,7 +12,7 @@
 //! ## Example Usage
 //!
 //! ```rust,no_run
-//! use ally::providers::LLMProvider;
+//! use vega::providers::LLMProvider;
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {
@@ -103,7 +103,7 @@ impl LLMProvider {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use ally::providers::LLMProvider;
+    /// use vega::providers::LLMProvider;
     ///
     /// // Create Ollama provider (no API key needed)
     /// let ollama = LLMProvider::new("ollama", "llama3.1", None)?;
@@ -162,7 +162,7 @@ impl LLMProvider {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use ally::providers::LLMProvider;
+    /// use vega::providers::LLMProvider;
     ///
     /// let provider = LLMProvider::new("ollama", "llama3.1", None)?;
     /// assert_eq!(provider.model(), "llama3.1");
@@ -202,7 +202,7 @@ impl LLMProvider {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use ally::providers::LLMProvider;
+    /// use vega::providers::LLMProvider;
     ///
     /// #[tokio::main]
     /// async fn main() -> anyhow::Result<()> {

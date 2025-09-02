@@ -1,5 +1,5 @@
-use ally::agents::chat::ChatAgent;
-use ally::agents::{Agent, AgentConfig};
+use vega::agents::chat::ChatAgent;
+use vega::agents::{Agent, AgentConfig};
 
 #[tokio::test]
 async fn test_chat_agent_integration_ollama() {

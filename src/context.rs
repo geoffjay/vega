@@ -15,7 +15,7 @@
 //! ## Example Usage
 //!
 //! ```rust,no_run
-//! use ally::context::{ContextStore, ContextEntry};
+//! use vega::context::{ContextStore, ContextEntry};
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {
@@ -23,7 +23,7 @@
 //!     
 //!     // Add context entry
 //!     let entry = ContextEntry::new(
-//!         "ally".to_string(),
+//!         "vega".to_string(),
 //!         "session-123".to_string(),
 //!         "Hello, how can I help you?".to_string(),
 //!         "assistant".to_string()

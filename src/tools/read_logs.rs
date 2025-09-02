@@ -8,7 +8,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use super::ToolError;
-use crate::logging::{AllyLogger, LogEntry, LogLevel};
+use crate::logging::{LogEntry, LogLevel, Logger};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ReadLogsArgs {
@@ -23,7 +23,7 @@ pub struct ReadLogsArgs {
 #[derive(Serialize, Deserialize)]
 pub struct ReadLogsTool {
     #[serde(skip)]
-    logger: Option<std::sync::Arc<AllyLogger>>,
+    logger: Option<std::sync::Arc<Logger>>,
 }
 
 impl ReadLogsTool {
@@ -31,7 +31,7 @@ impl ReadLogsTool {
         Self { logger: None }
     }
 
-    pub fn with_logger(mut self, logger: std::sync::Arc<AllyLogger>) -> Self {
+    pub fn with_logger(mut self, logger: std::sync::Arc<Logger>) -> Self {
         self.logger = Some(logger);
         self
     }
@@ -104,7 +104,7 @@ impl ReadLogsTool {
     }
 
     fn parse_console_log_line(&self, line: &str, session_id: &str) -> Option<LogEntry> {
-        // Parse format: "2025-09-01 21:19:32.454 UTC [INFO] Context database: "ally_context.db""
+        // Parse format: "2025-09-01 21:19:32.454 UTC [INFO] Context database: "vega_context.db""
         let parts: Vec<&str> = line.splitn(4, ' ').collect();
         if parts.len() < 4 {
             return None;
