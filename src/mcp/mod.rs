@@ -154,7 +154,7 @@ mod tests {
     #[test]
     fn test_mcp_manager_creation() {
         let config = McpConfig::default();
-        let manager = McpManager::new(config);
+        let manager = McpManager::with_config(config);
         assert!(manager.clients.is_empty());
         assert!(manager.server.is_none());
     }

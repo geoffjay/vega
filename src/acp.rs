@@ -126,15 +126,11 @@ impl AcpAgent {
     /// Get a response from the chat agent
     async fn get_agent_response(
         &self,
-        _chat_agent: &ChatAgent,
+        chat_agent: &ChatAgent,
         prompt: &str,
         session_id: &str,
     ) -> Result<String> {
-        // This is a simplified version - in the full implementation,
-        // we'd need to integrate more deeply with the ChatAgent's response generation
-        // For now, we'll create a basic response
-
-        // Store user input in context
+        // Store user input in context first
         use crate::context::ContextEntry;
         let user_entry = ContextEntry::new(
             "acp".to_string(),
@@ -143,23 +139,28 @@ impl AcpAgent {
             "user".to_string(),
         );
 
-        // Create a simple embedding for the prompt (this would use the actual embedding service)
-        let embedding = vec![0.0; 1536]; // Placeholder embedding
+        // Generate embedding for the user prompt using the chat agent's embedding service
+        let user_embedding = chat_agent
+            .embedding_service()
+            .embed(prompt)
+            .await
+            .unwrap_or_else(|e| {
+                warn!("Failed to generate embedding for user prompt: {}", e);
+                vec![0.0; chat_agent.embedding_service().dimension()]
+            });
+
         if let Err(e) = self
             .context_store
-            .store_context(user_entry, embedding)
+            .store_context(user_entry, user_embedding)
             .await
         {
             warn!("Failed to store user context: {}", e);
         }
 
-        // Generate a response (this is simplified - the real implementation would
-        // use the full ChatAgent functionality)
-        let response = format!(
-            "I received your message: \"{}\". This is a response from Vega via the Agent Client Protocol. \
-            The full integration with Vega's chat capabilities is in progress.",
-            prompt
-        );
+        // Use the ChatAgent to generate a proper response with tools and context
+        let response = chat_agent
+            .get_response_with_tools(prompt, &self.context_store, session_id)
+            .await?;
 
         // Store agent response in context
         let agent_entry = ContextEntry::new(
@@ -169,7 +170,16 @@ impl AcpAgent {
             "assistant".to_string(),
         );
 
-        let response_embedding = vec![0.0; 1536]; // Placeholder embedding
+        // Generate embedding for the agent response
+        let response_embedding = chat_agent
+            .embedding_service()
+            .embed(&response)
+            .await
+            .unwrap_or_else(|e| {
+                warn!("Failed to generate embedding for agent response: {}", e);
+                vec![0.0; chat_agent.embedding_service().dimension()]
+            });
+
         if let Err(e) = self
             .context_store
             .store_context(agent_entry, response_embedding)

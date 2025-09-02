@@ -646,6 +646,10 @@ mod tests {
             log_structured: false,
             acp: false,
             command_history_length: 100,
+            mcp_server: false,
+            mcp_server_name: "vega-mcp-server".to_string(),
+            mcp_client: false,
+            mcp_config: None,
         };
 
         let config = AgentConfig::new(

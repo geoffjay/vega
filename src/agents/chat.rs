@@ -56,6 +56,11 @@ impl ChatAgent {
         &self.config
     }
 
+    /// Get a reference to the embedding service
+    pub fn embedding_service(&self) -> &EmbeddingService {
+        &self.embedding_service
+    }
+
     /// Set the logger for this agent
     pub fn with_logger(mut self, logger: std::sync::Arc<crate::logging::Logger>) -> Self {
         self.logger = Some(logger);
@@ -100,7 +105,7 @@ Respond in a conversational and helpful manner, using tools as needed to provide
     }
 
     /// Get a response from the AI using Rig with tools and context
-    async fn get_response_with_tools(
+    pub async fn get_response_with_tools(
         &self,
         prompt: &str,
         context: &ContextStore,
@@ -138,7 +143,7 @@ Respond in a conversational and helpful manner, using tools as needed to provide
         full_prompt.push_str(prompt);
 
         // Try with tools first, fallback to no tools if not supported
-        let response = match self.try_with_tools(&full_prompt).await {
+        let response = match self.try_with_tools(&full_prompt, session_id).await {
             Ok(response) => response,
             Err(e) => {
                 let error_msg = e.to_string();
@@ -177,7 +182,7 @@ Respond in a conversational and helpful manner, using tools as needed to provide
     }
 
     /// Try to get response with tools enabled
-    async fn try_with_tools(&self, full_prompt: &str) -> Result<String> {
+    async fn try_with_tools(&self, full_prompt: &str, session_id: &str) -> Result<String> {
         match self.config.provider.as_str() {
             "openai" => {
                 let client = providers::openai::Client::from_env();
@@ -193,9 +198,11 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                     .tool(ConfirmedEditFileTool::new(self.config.yolo))
                     .tool(ListFilesTool::new())
                     .tool(if let Some(ref logger) = self.logger {
-                        ReadLogsTool::new().with_logger(logger.clone())
-                    } else {
                         ReadLogsTool::new()
+                            .with_logger(logger.clone())
+                            .with_session_id(session_id.to_string())
+                    } else {
+                        ReadLogsTool::new().with_session_id(session_id.to_string())
                     })
                     .build();
 
@@ -218,9 +225,11 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                     .tool(ConfirmedEditFileTool::new(self.config.yolo))
                     .tool(ListFilesTool::new())
                     .tool(if let Some(ref logger) = self.logger {
-                        ReadLogsTool::new().with_logger(logger.clone())
-                    } else {
                         ReadLogsTool::new()
+                            .with_logger(logger.clone())
+                            .with_session_id(session_id.to_string())
+                    } else {
+                        ReadLogsTool::new().with_session_id(session_id.to_string())
                     })
                     .build();
 
@@ -243,9 +252,11 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                     .tool(ConfirmedEditFileTool::new(self.config.yolo))
                     .tool(ListFilesTool::new())
                     .tool(if let Some(ref logger) = self.logger {
-                        ReadLogsTool::new().with_logger(logger.clone())
-                    } else {
                         ReadLogsTool::new()
+                            .with_logger(logger.clone())
+                            .with_session_id(session_id.to_string())
+                    } else {
+                        ReadLogsTool::new().with_session_id(session_id.to_string())
                     })
                     .build();
 
@@ -268,9 +279,11 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                     .tool(ConfirmedEditFileTool::new(self.config.yolo))
                     .tool(ListFilesTool::new())
                     .tool(if let Some(ref logger) = self.logger {
-                        ReadLogsTool::new().with_logger(logger.clone())
-                    } else {
                         ReadLogsTool::new()
+                            .with_logger(logger.clone())
+                            .with_session_id(session_id.to_string())
+                    } else {
+                        ReadLogsTool::new().with_session_id(session_id.to_string())
                     })
                     .build();
 

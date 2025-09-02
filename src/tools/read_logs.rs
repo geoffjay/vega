@@ -12,8 +12,8 @@ use crate::logging::{LogEntry, LogLevel, Logger};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ReadLogsArgs {
-    /// Session ID to read logs for
-    pub session_id: String,
+    /// Session ID to read logs for (optional - uses current session if not provided)
+    pub session_id: Option<String>,
     /// Maximum number of log entries to return (default: 50)
     pub limit: Option<usize>,
     /// Log level filter (error, warn, info, debug, trace)
@@ -24,15 +24,25 @@ pub struct ReadLogsArgs {
 pub struct ReadLogsTool {
     #[serde(skip)]
     logger: Option<std::sync::Arc<Logger>>,
+    #[serde(skip)]
+    default_session_id: Option<String>,
 }
 
 impl ReadLogsTool {
     pub fn new() -> Self {
-        Self { logger: None }
+        Self {
+            logger: None,
+            default_session_id: None,
+        }
     }
 
     pub fn with_logger(mut self, logger: std::sync::Arc<Logger>) -> Self {
         self.logger = Some(logger);
+        self
+    }
+
+    pub fn with_session_id(mut self, session_id: String) -> Self {
+        self.default_session_id = Some(session_id);
         self
     }
 
@@ -186,7 +196,7 @@ impl Tool for ReadLogsTool {
                 "properties": {
                     "session_id": {
                         "type": "string",
-                        "description": "The session ID to read logs for"
+                        "description": "Session ID to read logs for (optional - uses current session if not provided)"
                     },
                     "limit": {
                         "type": "integer",
@@ -200,7 +210,7 @@ impl Tool for ReadLogsTool {
                         "enum": ["error", "warn", "info", "debug", "trace"]
                     }
                 },
-                "required": ["session_id"]
+                "required": []
             }),
         }
     }
@@ -208,64 +218,70 @@ impl Tool for ReadLogsTool {
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
         let limit = args.limit.unwrap_or(50);
 
+        // Determine session ID to use - provided arg or default
+        let session_id = args.session_id
+            .or(self.default_session_id.clone())
+            .ok_or_else(|| ToolError::InvalidInput(
+                "No session ID provided and no default session available. Please provide a session_id parameter.".to_string()
+            ))?;
+
         // Determine where to read logs from based on configuration
         let (log_output_type, _) = Self::get_log_config();
         let log_outputs: Vec<&str> = log_output_type.split(',').collect();
 
-        let mut log_entries = if log_outputs.contains(&"vector") {
-            // Read from vector store
-            self.read_logs_from_vector_store(&args.session_id, Some(limit))
-                .await?
-        } else if log_outputs.contains(&"file") {
-            // Read from file
-            self.read_logs_from_file(&args.session_id, Some(limit))
-                .await?
-        } else {
-            return Ok("No log storage configured. Logs are only available when file or vector output is enabled.".to_string());
-        };
+        if log_outputs.contains(&"file") {
+            // Read from file - this is safer than vector store for now
+            let mut log_entries = self.read_logs_from_file(&session_id, Some(limit)).await?;
 
-        // Apply level filter if specified
-        log_entries = self.filter_by_level(log_entries, args.level_filter);
+            // Apply level filter if specified
+            log_entries = self.filter_by_level(log_entries, args.level_filter);
 
-        // Sort by timestamp (most recent first)
-        log_entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+            // Sort by timestamp (most recent first)
+            log_entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
-        // Limit results
-        log_entries.truncate(limit);
+            // Limit results
+            log_entries.truncate(limit);
 
-        if log_entries.is_empty() {
-            return Ok(format!(
-                "No log entries found for session ID: {}",
-                args.session_id
-            ));
-        }
+            if log_entries.is_empty() {
+                return Ok(format!(
+                    "No log entries found for session ID: {}",
+                    session_id
+                ));
+            }
 
-        // Format output
-        let mut output = format!(
-            "Found {} log entries for session {}:\n\n",
-            log_entries.len(),
-            args.session_id
-        );
+            // Format output
+            let mut output = format!(
+                "Found {} log entries for session {}:\n\n",
+                log_entries.len(),
+                session_id
+            );
 
-        for entry in log_entries {
-            output.push_str(&format!(
-                "{} [{}] {}\n",
-                entry.timestamp.format("%Y-%m-%d %H:%M:%S%.3f UTC"),
-                entry.level,
-                entry.message
-            ));
+            for entry in log_entries {
+                output.push_str(&format!(
+                    "{} [{}] {}\n",
+                    entry.timestamp.format("%Y-%m-%d %H:%M:%S%.3f UTC"),
+                    entry.level,
+                    entry.message
+                ));
 
-            // Add metadata if present
-            if !entry.metadata.is_empty() {
-                output.push_str("  Metadata: ");
-                for (key, value) in &entry.metadata {
-                    output.push_str(&format!("{}={} ", key, value));
+                // Add metadata if present
+                if !entry.metadata.is_empty() {
+                    output.push_str("  Metadata: ");
+                    for (key, value) in &entry.metadata {
+                        output.push_str(&format!("{}={} ", key, value));
+                    }
+                    output.push('\n');
                 }
                 output.push('\n');
             }
-            output.push('\n');
-        }
 
-        Ok(output)
+            Ok(output)
+        } else {
+            // Avoid vector store for now as it might be causing the MaxDepthError
+            Ok(format!(
+                "Log reading is available but requires file logging to be enabled. Current session: {}",
+                session_id
+            ))
+        }
     }
 }
