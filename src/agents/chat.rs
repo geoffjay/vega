@@ -12,6 +12,7 @@ use crate::agent_instructions::format_instructions_for_prompt;
 use crate::context::{ContextEntry, ContextStore};
 use crate::embeddings::{EmbeddingProvider, EmbeddingService};
 use crate::input::InputHandler;
+use crate::streaming::{ProgressPhase, StreamingProgress};
 use crate::tools::*;
 
 /// Chat agent that provides interactive conversation with an LLM and tool support
@@ -115,10 +116,21 @@ Respond in a conversational and helpful manner, using tools as needed to provide
             debug!("Sending prompt to AI model with tools and context");
         }
 
-        // Generate embedding for the current prompt
+        // Create streaming progress indicator
+        let progress = StreamingProgress::new();
+        let progress_handle = progress.start_indicator().await;
+
+        // Phase 1: Preparing
+        progress.update_phase(ProgressPhase::Preparing, None).await;
+
+        // Phase 2: Generate embedding for the current prompt
+        progress.update_phase(ProgressPhase::Embedding, None).await;
         let query_embedding = self.embedding_service.embed(prompt).await?;
 
-        // Retrieve relevant context from previous conversations
+        // Phase 3: Retrieve relevant context from previous conversations
+        progress
+            .update_phase(ProgressPhase::ContextRetrieval, None)
+            .await;
         let relevant_context = context
             .get_relevant_context(query_embedding, Some(session_id), 5)
             .await?;
@@ -141,6 +153,9 @@ Respond in a conversational and helpful manner, using tools as needed to provide
 
         full_prompt.push_str("Current request: ");
         full_prompt.push_str(prompt);
+
+        // Phase 4: Thinking/Processing
+        progress.update_phase(ProgressPhase::Thinking, None).await;
 
         // Try with tools first, fallback to no tools if not supported
         let response = match self.try_with_tools(&full_prompt, session_id).await {
@@ -174,11 +189,51 @@ Respond in a conversational and helpful manner, using tools as needed to provide
             }
         };
 
+        // Phase 5: Finalizing
+        progress.update_phase(ProgressPhase::Finalizing, None).await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await; // Brief pause for visual feedback
+
+        // Stop the progress indicator
+        progress_handle.abort();
+        progress.stop();
+
         if self.config.verbose {
             debug!("Received response from AI model");
         }
 
         Ok(response)
+    }
+
+    /// Show a thinking indicator while the LLM is processing
+    async fn show_thinking_indicator() {
+        Self::show_progress_indicator("Thinking", "🧠").await;
+    }
+
+    /// Show a customizable progress indicator
+    async fn show_progress_indicator(message: &str, emoji: &str) {
+        use std::io::{self, Write};
+
+        let frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        let mut frame_index = 0;
+        let start_time = std::time::Instant::now();
+
+        loop {
+            let elapsed = start_time.elapsed();
+            let elapsed_str = if elapsed.as_secs() > 0 {
+                format!(" ({}s)", elapsed.as_secs())
+            } else {
+                String::new()
+            };
+
+            print!(
+                "\r\x1b[93m{}\x1b[0m {} {}{}...",
+                frames[frame_index], emoji, message, elapsed_str
+            );
+            io::stdout().flush().unwrap();
+
+            frame_index = (frame_index + 1) % frames.len();
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
     }
 
     /// Try to get response with tools enabled
@@ -303,7 +358,10 @@ Respond in a conversational and helpful manner, using tools as needed to provide
     async fn get_response_without_tools(&self, full_prompt: &str) -> Result<String> {
         let simple_preamble = "You are a helpful AI assistant. Respond in a conversational and helpful manner. While you don't have access to tools in this mode, you can still provide helpful information, explanations, and guidance.";
 
-        match self.config.provider.as_str() {
+        // Show simple thinking indicator
+        let thinking_handle = tokio::spawn(Self::show_thinking_indicator());
+
+        let result = match self.config.provider.as_str() {
             "openai" => {
                 let client = providers::openai::Client::from_env();
                 let agent = client
@@ -360,7 +418,13 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                 "Unsupported provider: {}",
                 self.config.provider
             )),
-        }
+        };
+
+        // Stop the thinking indicator
+        thinking_handle.abort();
+        crate::streaming::stop_progress();
+
+        result
     }
 
     /// Handle slash commands
@@ -599,31 +663,48 @@ Respond in a conversational and helpful manner, using tools as needed to provide
         println!("   • Environment: export VEGA_PROVIDER=openrouter VEGA_MODEL=openai/gpt-4");
     }
 
-    /// Print all environment variables and their values
+    /// Print application-understood environment variables and their values
     fn print_environment_variables(&self) {
-        println!("🌍 Environment Variables:");
+        println!("🌍 Application Environment Variables:");
         println!("═══════════════════════════════════════════════════════════════");
 
-        let mut env_vars: Vec<(String, String)> = std::env::vars().collect();
-        env_vars.sort_by(|a, b| a.0.cmp(&b.0));
+        // Only show environment variables that the application understands
+        let app_env_vars = [
+            ("VEGA_PROVIDER", "LLM provider"),
+            ("VEGA_MODEL", "LLM model"),
+            ("VEGA_EMBEDDING_PROVIDER", "Embedding provider"),
+            ("VEGA_EMBEDDING_MODEL", "Embedding model"),
+            ("VEGA_CONTEXT_DB", "Context database path"),
+            ("VEGA_SESSION_ID", "Session ID"),
+            ("VEGA_LOG_OUTPUT", "Log output destinations"),
+            ("VEGA_LOG_FILE", "Log file path"),
+            ("VEGA_LOG_STRUCTURED", "Structured logging"),
+            ("VEGA_LOG_LEVEL", "Log level"),
+            ("VEGA_COMMAND_HISTORY_LENGTH", "Command history length"),
+            ("OPENROUTER_API_KEY", "OpenRouter API key"),
+            ("ANTHROPIC_API_KEY", "Anthropic API key"),
+            ("OPENAI_API_KEY", "OpenAI API key"),
+        ];
 
-        for (key, value) in env_vars {
-            // Mask sensitive values (API keys, passwords, tokens)
-            let masked_value = if key.to_uppercase().contains("KEY")
-                || key.to_uppercase().contains("PASSWORD")
-                || key.to_uppercase().contains("TOKEN")
-                || key.to_uppercase().contains("SECRET")
-            {
-                if value.is_empty() {
-                    "<empty>".to_string()
-                } else {
-                    format!("{}***", &value[..std::cmp::min(4, value.len())])
+        for (var_name, description) in &app_env_vars {
+            match std::env::var(var_name) {
+                Ok(value) => {
+                    // Mask sensitive values (API keys)
+                    let masked_value = if var_name.contains("API_KEY") {
+                        if value.is_empty() {
+                            "✗ not set".to_string()
+                        } else {
+                            "✓ configured".to_string()
+                        }
+                    } else {
+                        value
+                    };
+                    println!("  {} ({}): {}", var_name, description, masked_value);
                 }
-            } else {
-                value
-            };
-
-            println!("  {} = {}", key, masked_value);
+                Err(_) => {
+                    println!("  {} ({}): ✗ not set", var_name, description);
+                }
+            }
         }
         println!("═══════════════════════════════════════════════════════════════");
     }

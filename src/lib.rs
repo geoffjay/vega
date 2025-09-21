@@ -45,6 +45,7 @@
 //! - [`logging`] - Structured logging system with multiple output targets
 //! - [`mcp`] - Model Context Protocol client and server implementation
 //! - [`providers`] - LLM provider implementations (Ollama, OpenRouter)
+//! - [`streaming`] - Streaming progress indicators for LLM operations
 //! - [`tools`] - Tool system for file operations, web search, and system interaction
 //! - [`web`] - Web interface for session management and monitoring
 
@@ -57,6 +58,7 @@ pub mod input;
 pub mod logging;
 pub mod mcp;
 pub mod providers;
+pub mod streaming;
 pub mod tools;
 pub mod web;
 

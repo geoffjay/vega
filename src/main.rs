@@ -1,6 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
-use std::env;
+
 use std::path::PathBuf;
 // Main module - uses custom logger for all output
 use uuid::Uuid;
@@ -14,7 +14,9 @@ pub mod input;
 pub mod logging;
 pub mod mcp;
 pub mod providers;
+pub mod streaming;
 pub mod tools;
+pub mod tui;
 pub mod web;
 
 use crate::agent_instructions::AgentInstructionLoader;
@@ -143,128 +145,83 @@ struct Args {
     /// MCP client configuration file path
     #[arg(long)]
     mcp_config: Option<PathBuf>,
+
+    /// Disable the startup splash screen
+    #[arg(long)]
+    no_splash: bool,
+
+    /// Enable debug output for troubleshooting
+    #[arg(long)]
+    debug_startup: bool,
 }
 
-impl Args {
-    /// Display configuration values from command line arguments and environment variables
-    fn display_configuration(&self) {
-        println!("🚀 Vega Configuration");
-        println!("═══════════════════════════════════════════════════════════════");
+/// Display the ASCII art splash screen
+async fn display_splash_screen() -> Result<()> {
+    // Check if we should use simple ASCII (for compatibility)
+    let use_simple_ascii = std::env::var("VEGA_SIMPLE_ASCII").is_ok()
+        || std::env::var("TERM").map(|t| t == "dumb").unwrap_or(false);
 
-        // Display command line arguments
-        println!("📋 Command Line Arguments:");
-        println!(
-            "  • Verbose logging: {}",
-            if self.verbose { "enabled" } else { "disabled" }
-        );
-        println!("  • LLM provider: {}", self.provider);
-        println!("  • LLM model: {}", self.model);
-        println!("  • Embedding provider: {}", self.embedding_provider);
-        if let Some(ref model) = self.embedding_model {
-            println!("  • Embedding model: {}", model);
-        } else {
-            println!("  • Embedding model: <default>");
-        }
-        println!("  • Context database: {}", self.context_db.display());
-        if let Some(ref session) = self.session_id {
-            println!("  • Session ID: {}", session);
-        } else {
-            println!("  • Session ID: <will be generated>");
-        }
-        println!("  • Web server port: {}", self.web_port);
-        println!(
-            "  • YOLO mode: {}",
-            if self.yolo { "enabled" } else { "disabled" }
-        );
-        println!("  • Log output: {}", self.log_output);
-        if let Some(ref log_file) = self.log_file {
-            println!("  • Log file: {}", log_file.display());
-        } else {
-            println!("  • Log file: <not set>");
-        }
-        println!(
-            "  • Structured logging: {}",
-            if self.log_structured {
-                "enabled"
-            } else {
-                "disabled"
-            }
-        );
-        println!(
-            "  • ACP mode: {}",
-            if self.acp { "enabled" } else { "disabled" }
-        );
-        println!(
-            "  • Command history length: {}",
-            self.command_history_length
-        );
-
-        // Display API key status (without revealing the actual keys)
-        if self.openrouter_api_key.is_some() {
-            println!("  • OpenRouter API key: ✓ configured");
-        } else {
-            println!("  • OpenRouter API key: ✗ not set");
-        }
-
-        if self.anthropic_api_key.is_some() {
-            println!("  • Anthropic API key: ✓ configured");
-        } else {
-            println!("  • Anthropic API key: ✗ not set");
-        }
-
-        if self.openai_api_key.is_some() {
-            println!("  • OpenAI API key: ✓ configured");
-        } else {
-            println!("  • OpenAI API key: ✗ not set");
-        }
-
-        println!();
-
-        // Display environment variables
-        println!("🌍 Environment Variables:");
-        let env_vars = [
-            ("VEGA_PROVIDER", "LLM provider"),
-            ("VEGA_MODEL", "LLM model"),
-            ("VEGA_EMBEDDING_PROVIDER", "Embedding provider"),
-            ("VEGA_EMBEDDING_MODEL", "Embedding model"),
-            ("VEGA_CONTEXT_DB", "Context database path"),
-            ("VEGA_SESSION_ID", "Session ID"),
-            ("VEGA_LOG_OUTPUT", "Log output destinations"),
-            ("VEGA_LOG_FILE", "Log file path"),
-            ("VEGA_LOG_STRUCTURED", "Structured logging"),
-            ("VEGA_LOG_LEVEL", "Log level"),
-            ("VEGA_COMMAND_HISTORY_LENGTH", "Command history length"),
-            ("OPENROUTER_API_KEY", "OpenRouter API key"),
-            ("ANTHROPIC_API_KEY", "Anthropic API key"),
-            ("OPENAI_API_KEY", "OpenAI API key"),
-        ];
-
-        for (var_name, description) in &env_vars {
-            match env::var(var_name) {
-                Ok(value) => {
-                    if var_name.contains("API_KEY") {
-                        println!("  • {} ({}): ✓ configured", var_name, description);
-                    } else {
-                        println!("  • {} ({}): {}", var_name, description, value);
-                    }
-                }
-                Err(_) => {
-                    println!("  • {} ({}): ✗ not set", var_name, description);
-                }
-            }
-        }
-
-        println!("═══════════════════════════════════════════════════════════════");
-        println!();
+    if use_simple_ascii {
+        // Simple ASCII version for compatibility
+        println!("                                    ");
+        println!("                                    ");
+        println!("        V E G A                     ");
+        println!("                                    ");
+        println!("        *     *        .           ");
+        println!("    .       *       *       .     ");
+        println!("        *       .       *         ");
+        println!("    *       .       *       *     ");
+        println!("        .       *       .         ");
+        println!("                                    ");
+    } else {
+        // Unicode version (original)
+        println!("                                    ");
+        println!("██╗   ██╗███████╗ ██████╗  █████╗  ");
+        println!("██║   ██║██╔════╝██╔════╝ ██╔══██╗ ");
+        println!("██║   ██║█████╗  ██║  ███╗███████║ ");
+        println!("╚██╗ ██╔╝██╔══╝  ██║   ██║██╔══██║ ");
+        println!(" ╚████╔╝ ███████╗╚██████╔╝██║  ██║ ");
+        println!("  ╚═══╝  ╚══════╝ ╚═════╝ ╚═╝  ╚═╝ ");
+        println!("                                    ");
+        println!("        ✦     ★        ·           ");
+        println!("    ·       ✦       ★       ·     ");
+        println!("        ★       ·       ✦         ");
+        println!("    ✦       ·       ★       ✦     ");
+        println!("        ·       ★       ·         ");
+        println!("                                    ");
     }
+
+    // Show the splash screen briefly
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    Ok(())
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
 
-    // Display configuration at startup
-    args.display_configuration();
+    if args.debug_startup {
+        eprintln!("DEBUG: Starting Vega...");
+        eprintln!("DEBUG: ACP mode: {}", args.acp);
+        eprintln!("DEBUG: No splash: {}", args.no_splash);
+        eprintln!("DEBUG: TERM: {:?}", std::env::var("TERM"));
+        eprintln!(
+            "DEBUG: VEGA_SIMPLE_ASCII: {:?}",
+            std::env::var("VEGA_SIMPLE_ASCII")
+        );
+    }
+
+    // Display ASCII art splash screen (unless in ACP mode or disabled)
+    if !args.acp && !args.no_splash {
+        if args.debug_startup {
+            eprintln!("DEBUG: Displaying splash screen...");
+        }
+        display_splash_screen().await?;
+        if args.debug_startup {
+            eprintln!("DEBUG: Splash screen displayed successfully");
+        }
+    }
 
     // Initialize tracing based on log output configuration
     let log_outputs: Vec<&str> = args.log_output.split(',').collect();
@@ -650,6 +607,8 @@ mod tests {
             mcp_server_name: "vega-mcp-server".to_string(),
             mcp_client: false,
             mcp_config: None,
+            no_splash: false,
+            debug_startup: false,
         };
 
         let config = AgentConfig::new(

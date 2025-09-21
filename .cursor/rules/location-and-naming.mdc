@@ -1,0 +1,522 @@
+---
+description: This rule is used when creating files as it identifies the preferences relating to file location and naming preferences.
+alwaysApply: false
+---
+
+# File Location and Naming Conventions
+
+This rule defines the preferred file organization, naming conventions, and project structure for the Vega AI agent project.
+
+## Directory Structure Principles
+
+### Core Source Code (`src/`)
+
+- **Purpose**: Contains only core agent functionality and library code
+- **Keep Clean**: Avoid utilities, binaries, and non-essential code
+- **Future-Ready**: Designed for eventual extraction into individual crates
+
+### Utilities (`utils/`)
+
+- **Purpose**: Standalone utility binaries and helper tools
+- **Examples**: `behavior_verifier.rs`, `benchmark_tools.rs`, `dev_helpers.rs`
+- **Rationale**: Keeps utilities separate from core agent code
+- **Binary Declaration**: Update `Cargo.toml` with `path = "utils/filename.rs"`
+
+### Documentation (`docs/`)
+
+- **Structure**: Organized by topic in subdirectories
+- **Naming**: Use `snake_case` filenames with descriptive names
+- **Avoid**: ALL_CAPS filenames (e.g., `README.md` → `docs/topic/readme.md`)
+
+### Tests (`tests/`)
+
+- **Purpose**: Integration and behavior tests only
+- **Avoid**: Documentation files (move to `docs/testing/`)
+- **Focus**: Keep test directory focused on actual test code
+
+## File Naming Conventions
+
+### Documentation Files
+
+```
+✅ PREFERRED:
+docs/testing/behavior_verification.md
+docs/testing/integration_testing.md
+docs/iacp/protocol_specification.md
+docs/deployment/configuration_guide.md
+
+❌ AVOID:
+docs/BEHAVIOR_TESTING.md
+docs/VERIFICATION_SUMMARY.md
+tests/README.md
+```
+
+### Utility Binaries
+
+```
+✅ PREFERRED:
+utils/behavior_verifier.rs
+utils/performance_monitor.rs
+utils/config_validator.rs
+
+❌ AVOID:
+src/bin/behavior_verifier.rs
+src/tools/dev_utils.rs
+```
+
+### Source Code Files
+
+```
+✅ PREFERRED:
+src/agents/chat.rs
+src/streaming/progress.rs
+src/context/store.rs
+
+❌ AVOID:
+src/ChatAgent.rs
+src/StreamingProgress.rs
+```
+
+## Directory Organization Guidelines
+
+### Documentation Structure
+
+```
+docs/
+├── testing/
+│   ├── behavior_verification.md
+│   ├── integration_testing.md
+│   └── test_framework.md
+├── iacp/
+│   ├── protocol_specification.md
+│   └── implementation_guide.md
+├── deployment/
+│   ├── configuration.md
+│   └── installation.md
+└── api/
+    ├── agent_interface.md
+    └── tool_system.md
+```
+
+### Utility Organization
+
+```
+utils/
+├── behavior_verifier.rs
+├── performance_monitor.rs
+├── config_validator.rs
+└── development/
+    ├── test_data_generator.rs
+    └── mock_server.rs
+```
+
+### Source Code Organization
+
+```
+src/
+├── agents/          # Core agent implementations
+├── streaming/       # Progress and streaming functionality
+├── context/         # Context management
+├── tools/           # Agent tools and capabilities
+├── providers/       # LLM provider integrations
+└── lib.rs          # Library root
+```
+
+## Cargo.toml Binary Configuration
+
+When adding utilities, update `Cargo.toml`:
+
+```toml
+[[bin]]
+name = "behavior-verifier"
+path = "utils/behavior_verifier.rs"
+
+[[bin]]
+name = "performance-monitor"
+path = "utils/performance_monitor.rs"
+```
+
+## Future Crate Extraction Preparation
+
+### Modular Design
+
+- Keep modules loosely coupled
+- Avoid deep dependencies between core components
+- Design for eventual extraction into separate crates
+
+### Potential Future Crates
+
+```
+vega-core/           # Core agent functionality
+vega-streaming/      # Progress and streaming
+vega-context/        # Context management
+vega-tools/          # Tool system
+vega-providers/      # LLM provider integrations
+vega-utils/          # Utility binaries and helpers
+```
+
+## Implementation Guidelines
+
+### When Creating New Files
+
+1. **Determine Purpose**:
+
+   - Core functionality → `src/`
+   - Utility/tool → `utils/`
+   - Documentation → `docs/topic/`
+   - Test → `tests/`
+
+2. **Choose Naming**:
+
+   - Use `snake_case` for all files
+   - Be descriptive and specific
+   - Avoid abbreviations unless widely understood
+
+3. **Consider Organization**:
+   - Group related files in subdirectories
+   - Create topic-based documentation folders
+   - Keep utilities separate from core code
+
+### When Moving Existing Files
+
+1. **Update References**:
+
+   - Update `Cargo.toml` for binary paths
+   - Update import statements
+   - Update documentation links
+
+2. **Maintain Functionality**:
+   - Ensure all tests still pass
+   - Verify binary compilation
+   - Check documentation builds
+
+## Examples of Correct Application
+
+### Adding a New Utility Binary
+
+```bash
+# Create the utility
+touch utils/config_validator.rs
+
+# Update Cargo.toml
+[[bin]]
+name = "config-validator"
+path = "utils/config_validator.rs"
+```
+
+### Adding Documentation
+
+```bash
+# Create topic directory if needed
+mkdir -p docs/configuration
+
+# Create documentation file
+touch docs/configuration/advanced_settings.md
+```
+
+### Organizing Test Documentation
+
+```bash
+# Move test docs to proper location
+mv tests/README.md docs/testing/overview.md
+mv docs/TESTING_GUIDE.md docs/testing/integration_guide.md
+```
+
+## Rationale
+
+### Benefits of This Structure
+
+1. **Clean Core**: Keeps `src/` focused on essential agent functionality
+2. **Future-Ready**: Prepares for crate extraction without major restructuring
+3. **Organized Docs**: Topic-based documentation is easier to navigate and maintain
+4. **Clear Separation**: Utilities, tests, and documentation have clear boundaries
+5. **Scalable**: Structure supports project growth without becoming unwieldy
+
+### Consistency Benefits
+
+1. **Predictable Locations**: Developers know where to find and place files
+2. **Easier Navigation**: Logical organization reduces cognitive load
+3. **Better Tooling**: IDEs and tools work better with consistent structure
+4. **Maintainable**: Clear organization makes maintenance and refactoring easier
+
+## Enforcement
+
+### Code Review Checklist
+
+- [ ] New files follow naming conventions
+- [ ] Files are placed in appropriate directories
+- [ ] Binary paths are correctly configured in `Cargo.toml`
+- [ ] Documentation is properly organized by topic
+- [ ] No utilities or docs clutter the core `src/` directory
+
+### Automated Checks
+
+Consider adding CI checks for:
+
+- File naming convention compliance
+- Directory structure validation
+- Documentation organization verification
+- Binary path configuration correctness
+
+---
+
+This rule should be applied intelligently by agents when creating, moving, or organizing files in the Vega project, ensuring consistency and preparing for future modularization.
+
+# File Location and Naming Conventions
+
+This rule defines the preferred file organization, naming conventions, and project structure for the Vega AI agent project.
+
+## Directory Structure Principles
+
+### Core Source Code (`src/`)
+
+- **Purpose**: Contains only core agent functionality and library code
+- **Keep Clean**: Avoid utilities, binaries, and non-essential code
+- **Future-Ready**: Designed for eventual extraction into individual crates
+
+### Utilities (`utils/`)
+
+- **Purpose**: Standalone utility binaries and helper tools
+- **Examples**: `behavior_verifier.rs`, `benchmark_tools.rs`, `dev_helpers.rs`
+- **Rationale**: Keeps utilities separate from core agent code
+- **Binary Declaration**: Update `Cargo.toml` with `path = "utils/filename.rs"`
+
+### Documentation (`docs/`)
+
+- **Structure**: Organized by topic in subdirectories
+- **Naming**: Use `snake_case` filenames with descriptive names
+- **Avoid**: ALL_CAPS filenames (e.g., `README.md` → `docs/topic/readme.md`)
+
+### Tests (`tests/`)
+
+- **Purpose**: Integration and behavior tests only
+- **Avoid**: Documentation files (move to `docs/testing/`)
+- **Focus**: Keep test directory focused on actual test code
+
+## File Naming Conventions
+
+### Documentation Files
+
+```
+✅ PREFERRED:
+docs/testing/behavior_verification.md
+docs/testing/integration_testing.md
+docs/iacp/protocol_specification.md
+docs/deployment/configuration_guide.md
+
+❌ AVOID:
+docs/BEHAVIOR_TESTING.md
+docs/VERIFICATION_SUMMARY.md
+tests/README.md
+```
+
+### Utility Binaries
+
+```
+✅ PREFERRED:
+utils/behavior_verifier.rs
+utils/performance_monitor.rs
+utils/config_validator.rs
+
+❌ AVOID:
+src/bin/behavior_verifier.rs
+src/tools/dev_utils.rs
+```
+
+### Source Code Files
+
+```
+✅ PREFERRED:
+src/agents/chat.rs
+src/streaming/progress.rs
+src/context/store.rs
+
+❌ AVOID:
+src/ChatAgent.rs
+src/StreamingProgress.rs
+```
+
+## Directory Organization Guidelines
+
+### Documentation Structure
+
+```
+docs/
+├── testing/
+│   ├── behavior_verification.md
+│   ├── integration_testing.md
+│   └── test_framework.md
+├── iacp/
+│   ├── protocol_specification.md
+│   └── implementation_guide.md
+├── deployment/
+│   ├── configuration.md
+│   └── installation.md
+└── api/
+    ├── agent_interface.md
+    └── tool_system.md
+```
+
+### Utility Organization
+
+```
+utils/
+├── behavior_verifier.rs
+├── performance_monitor.rs
+├── config_validator.rs
+└── development/
+    ├── test_data_generator.rs
+    └── mock_server.rs
+```
+
+### Source Code Organization
+
+```
+src/
+├── agents/          # Core agent implementations
+├── streaming/       # Progress and streaming functionality
+├── context/         # Context management
+├── tools/           # Agent tools and capabilities
+├── providers/       # LLM provider integrations
+└── lib.rs          # Library root
+```
+
+## Cargo.toml Binary Configuration
+
+When adding utilities, update `Cargo.toml`:
+
+```toml
+[[bin]]
+name = "behavior-verifier"
+path = "utils/behavior_verifier.rs"
+
+[[bin]]
+name = "performance-monitor"
+path = "utils/performance_monitor.rs"
+```
+
+## Future Crate Extraction Preparation
+
+### Modular Design
+
+- Keep modules loosely coupled
+- Avoid deep dependencies between core components
+- Design for eventual extraction into separate crates
+
+### Potential Future Crates
+
+```
+vega-core/           # Core agent functionality
+vega-streaming/      # Progress and streaming
+vega-context/        # Context management
+vega-tools/          # Tool system
+vega-providers/      # LLM provider integrations
+vega-utils/          # Utility binaries and helpers
+```
+
+## Implementation Guidelines
+
+### When Creating New Files
+
+1. **Determine Purpose**:
+
+   - Core functionality → `src/`
+   - Utility/tool → `utils/`
+   - Documentation → `docs/topic/`
+   - Test → `tests/`
+
+2. **Choose Naming**:
+
+   - Use `snake_case` for all files
+   - Be descriptive and specific
+   - Avoid abbreviations unless widely understood
+
+3. **Consider Organization**:
+   - Group related files in subdirectories
+   - Create topic-based documentation folders
+   - Keep utilities separate from core code
+
+### When Moving Existing Files
+
+1. **Update References**:
+
+   - Update `Cargo.toml` for binary paths
+   - Update import statements
+   - Update documentation links
+
+2. **Maintain Functionality**:
+   - Ensure all tests still pass
+   - Verify binary compilation
+   - Check documentation builds
+
+## Examples of Correct Application
+
+### Adding a New Utility Binary
+
+```bash
+# Create the utility
+touch utils/config_validator.rs
+
+# Update Cargo.toml
+[[bin]]
+name = "config-validator"
+path = "utils/config_validator.rs"
+```
+
+### Adding Documentation
+
+```bash
+# Create topic directory if needed
+mkdir -p docs/configuration
+
+# Create documentation file
+touch docs/configuration/advanced_settings.md
+```
+
+### Organizing Test Documentation
+
+```bash
+# Move test docs to proper location
+mv tests/README.md docs/testing/overview.md
+mv docs/TESTING_GUIDE.md docs/testing/integration_guide.md
+```
+
+## Rationale
+
+### Benefits of This Structure
+
+1. **Clean Core**: Keeps `src/` focused on essential agent functionality
+2. **Future-Ready**: Prepares for crate extraction without major restructuring
+3. **Organized Docs**: Topic-based documentation is easier to navigate and maintain
+4. **Clear Separation**: Utilities, tests, and documentation have clear boundaries
+5. **Scalable**: Structure supports project growth without becoming unwieldy
+
+### Consistency Benefits
+
+1. **Predictable Locations**: Developers know where to find and place files
+2. **Easier Navigation**: Logical organization reduces cognitive load
+3. **Better Tooling**: IDEs and tools work better with consistent structure
+4. **Maintainable**: Clear organization makes maintenance and refactoring easier
+
+## Enforcement
+
+### Code Review Checklist
+
+- [ ] New files follow naming conventions
+- [ ] Files are placed in appropriate directories
+- [ ] Binary paths are correctly configured in `Cargo.toml`
+- [ ] Documentation is properly organized by topic
+- [ ] No utilities or docs clutter the core `src/` directory
+
+### Automated Checks
+
+Consider adding CI checks for:
+
+- File naming convention compliance
+- Directory structure validation
+- Documentation organization verification
+- Binary path configuration correctness
+
+---
+
+This rule should be applied intelligently by agents when creating, moving, or organizing files in the Vega project, ensuring consistency and preparing for future modularization.

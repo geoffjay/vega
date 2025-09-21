@@ -11,6 +11,10 @@ path = "src/lib.rs"
 name = "vega"
 path = "src/main.rs"
 
+[[bin]]
+name = "behavior-verifier"
+path = "utils/behavior_verifier.rs"
+
 [dependencies]
 rig = { version = "0.18.2", package = "rig-core" }
 tokio = { version = "1.0", features = ["full"] }
@@ -35,6 +39,8 @@ minijinja = "2.0"
 agent-client-protocol = "0.1"
 rustyline = "14.0"
 rust-mcp-sdk = { version = "0.6.3", features = ["default", "client", "server"] }
+ratatui = "0.28"
+crossterm = "0.28"
 
 [dev-dependencies]
 tokio-test = "0.4"
