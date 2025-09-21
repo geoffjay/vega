@@ -1,5 +1,5 @@
 use std::io::{self, Write};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex};
 use tokio::sync::{Mutex, broadcast};
 use tokio::time::{Duration, Instant};
 
@@ -45,6 +45,9 @@ pub struct ProgressUpdate {
     pub message: Option<String>,
 }
 
+/// Global pause state for streaming progress
+static PROGRESS_PAUSED: StdMutex<bool> = StdMutex::new(false);
+
 /// Streaming progress indicator for LLM operations
 pub struct StreamingProgress {
     sender: broadcast::Sender<ProgressUpdate>,
@@ -81,6 +84,21 @@ impl StreamingProgress {
             let mut custom_message: Option<String> = None;
 
             loop {
+                // Check if progress is paused
+                let is_paused = {
+                    if let Ok(paused) = PROGRESS_PAUSED.lock() {
+                        *paused
+                    } else {
+                        false
+                    }
+                };
+
+                if is_paused {
+                    // Wait while paused, checking every 50ms
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                    continue;
+                }
+
                 // Check for phase updates
                 if let Ok(update) = receiver.try_recv() {
                     current_display_phase = update.phase;
@@ -143,6 +161,21 @@ pub async fn show_simple_progress(message: &str, emoji: &str) -> tokio::task::Jo
         let start_time = Instant::now();
 
         loop {
+            // Check if progress is paused
+            let is_paused = {
+                if let Ok(paused) = PROGRESS_PAUSED.lock() {
+                    *paused
+                } else {
+                    false
+                }
+            };
+
+            if is_paused {
+                // Wait while paused, checking every 50ms
+                tokio::time::sleep(Duration::from_millis(50)).await;
+                continue;
+            }
+
             let elapsed = start_time.elapsed();
             let elapsed_str = if elapsed.as_secs() > 0 {
                 format!(" ({}s)", elapsed.as_secs())
@@ -166,4 +199,20 @@ pub async fn show_simple_progress(message: &str, emoji: &str) -> tokio::task::Jo
 pub fn stop_progress() {
     print!("\r\x1b[K"); // Clear the current line
     io::stdout().flush().unwrap();
+}
+
+/// Pause progress indicators for user interaction
+pub fn pause_progress() {
+    if let Ok(mut paused) = PROGRESS_PAUSED.lock() {
+        *paused = true;
+    }
+    print!("\r\x1b[K"); // Clear the current line
+    io::stdout().flush().unwrap();
+}
+
+/// Resume progress indicators after user interaction
+pub fn resume_progress() {
+    if let Ok(mut paused) = PROGRESS_PAUSED.lock() {
+        *paused = false;
+    }
 }

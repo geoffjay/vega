@@ -41,6 +41,7 @@
 //! - [`agents`] - Core agent implementation and configuration
 //! - [`context`] - Conversation context management and persistence
 //! - [`embeddings`] - Vector embeddings for semantic search and context retrieval
+//! - [`iacp`] - Inter-Agent Communication Protocol for multi-agent coordination
 //! - [`input`] - User input handling and processing
 //! - [`logging`] - Structured logging system with multiple output targets
 //! - [`mcp`] - Model Context Protocol client and server implementation
@@ -61,6 +62,9 @@ pub mod providers;
 pub mod streaming;
 pub mod tools;
 pub mod web;
+
+// Re-export the Inter-Agent Communication Protocol crate
+pub use vega_iacp as iacp;
 
 // Re-export commonly used types for convenience
 pub use agents::{Agent, AgentConfig};

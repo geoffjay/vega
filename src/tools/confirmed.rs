@@ -27,6 +27,9 @@ impl<T> ConfirmedTool<T> {
             return Ok(true);
         }
 
+        // Pause any streaming progress indicators to avoid interference
+        crate::streaming::pause_progress();
+
         println!("\n🔧 Tool Execution Request:");
         println!("Tool: {}", tool_name);
         println!("Action: {}", description);
@@ -39,7 +42,12 @@ impl<T> ConfirmedTool<T> {
             .map_err(|e| ToolError::Io(e))?;
 
         let response = input.trim().to_lowercase();
-        Ok(response == "y" || response == "yes")
+        let confirmed = response == "y" || response == "yes";
+
+        // Resume streaming progress indicators after user interaction
+        crate::streaming::resume_progress();
+
+        Ok(confirmed)
     }
 }
 
