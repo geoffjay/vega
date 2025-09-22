@@ -56,13 +56,13 @@ loop {
             false
         }
     };
-    
+
     if is_paused {
         // Wait while paused, checking every 50ms
         tokio::time::sleep(Duration::from_millis(50)).await;
         continue;
     }
-    
+
     // Normal progress indicator logic...
 }
 ```
@@ -93,10 +93,10 @@ fn confirm_execution(&self, tool_name: &str, description: &str) -> Result<bool, 
 
     let response = input.trim().to_lowercase();
     let confirmed = response == "y" || response == "yes";
-    
+
     // Resume streaming progress indicators after user interaction
     crate::streaming::resume_progress();
-    
+
     Ok(confirmed)
 }
 ```
@@ -135,6 +135,7 @@ let is_paused = {
 ### Manual Testing
 
 1. Run a command that requires tool confirmation:
+
    ```bash
    cargo run
    # In the chat, ask: "List all files in the current directory"
@@ -149,6 +150,7 @@ let is_paused = {
 ### Automated Testing
 
 The existing behavior tests continue to work and verify that:
+
 - Progress indicators still function correctly
 - Thinking phases are properly tracked
 - No regression in streaming functionality

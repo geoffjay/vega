@@ -1,6 +1,7 @@
 use anyhow::Result;
 use rig::completion::ToolDefinition;
 use rig::tool::Tool;
+use tracing::trace;
 
 use std::io::{self, Write};
 
@@ -23,7 +24,10 @@ impl<T> ConfirmedTool<T> {
 
     /// Prompt user for confirmation
     fn confirm_execution(&self, tool_name: &str, description: &str) -> Result<bool, ToolError> {
+        trace!("Tool execution requested: {} - {}", tool_name, description);
+
         if self.yolo {
+            trace!("YOLO mode enabled, auto-confirming tool execution");
             return Ok(true);
         }
 
@@ -43,6 +47,11 @@ impl<T> ConfirmedTool<T> {
 
         let response = input.trim().to_lowercase();
         let confirmed = response == "y" || response == "yes";
+
+        trace!(
+            "User response to tool confirmation: '{}' -> {}",
+            response, confirmed
+        );
 
         // Resume streaming progress indicators after user interaction
         crate::streaming::resume_progress();
@@ -78,12 +87,21 @@ impl Tool for ConfirmedBashTool {
         let description = format!("Execute command: {}", args.command);
 
         if !self.inner.confirm_execution(Self::NAME, &description)? {
+            trace!("Bash tool execution denied by user");
             return Err(ToolError::PermissionDenied(
                 "User denied tool execution".to_string(),
             ));
         }
 
-        self.inner.inner.call(args).await
+        trace!("Executing bash command: {}", args.command);
+        let result = self.inner.inner.call(args).await;
+
+        match &result {
+            Ok(_) => trace!("Bash command completed successfully"),
+            Err(e) => trace!("Bash command failed: {}", e),
+        }
+
+        result
     }
 }
 
@@ -114,11 +132,20 @@ impl Tool for ConfirmedEditFileTool {
         let description = format!("Edit/create file: {}", args.path);
 
         if !self.inner.confirm_execution(Self::NAME, &description)? {
+            trace!("Edit file tool execution denied by user");
             return Err(ToolError::PermissionDenied(
                 "User denied tool execution".to_string(),
             ));
         }
 
-        self.inner.inner.call(args).await
+        trace!("Editing/creating file: {}", args.path);
+        let result = self.inner.inner.call(args).await;
+
+        match &result {
+            Ok(_) => trace!("File edit completed successfully"),
+            Err(e) => trace!("File edit failed: {}", e),
+        }
+
+        result
     }
 }

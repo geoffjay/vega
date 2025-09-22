@@ -229,7 +229,15 @@ async fn main() -> Result<()> {
 
     if should_log_to_console {
         // Only initialize console tracing if console output is requested
-        let filter = if args.verbose { "debug" } else { "info" };
+        let filter = if args.verbose {
+            // Check VEGA_LOG_LEVEL first, then RUST_LOG, then default to debug
+            std::env::var("VEGA_LOG_LEVEL")
+                .or_else(|_| std::env::var("RUST_LOG"))
+                .unwrap_or_else(|_| "debug".to_string())
+        } else {
+            // Check VEGA_LOG_LEVEL first, then default to info
+            std::env::var("VEGA_LOG_LEVEL").unwrap_or_else(|_| "info".to_string())
+        };
         tracing_subscriber::fmt().with_env_filter(filter).init();
     } else {
         // Initialize a no-op subscriber to suppress tracing output

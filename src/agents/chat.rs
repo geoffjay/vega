@@ -4,7 +4,7 @@ use rig::completion::Prompt;
 use rig::prelude::*;
 use rig::providers;
 
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
 use super::{Agent, AgentConfig};
@@ -112,6 +112,8 @@ Respond in a conversational and helpful manner, using tools as needed to provide
         context: &ContextStore,
         session_id: &str,
     ) -> Result<String> {
+        trace!("Received user prompt: '{}'", prompt);
+
         if self.config.verbose {
             debug!("Sending prompt to AI model with tools and context");
         }
@@ -125,15 +127,22 @@ Respond in a conversational and helpful manner, using tools as needed to provide
 
         // Phase 2: Generate embedding for the current prompt
         progress.update_phase(ProgressPhase::Embedding, None).await;
+        trace!("Generating embedding for prompt...");
         let query_embedding = self.embedding_service.embed(prompt).await?;
+        trace!(
+            "Embedding generated successfully (dimension: {})",
+            query_embedding.len()
+        );
 
         // Phase 3: Retrieve relevant context from previous conversations
         progress
             .update_phase(ProgressPhase::ContextRetrieval, None)
             .await;
+        trace!("Retrieving relevant context...");
         let relevant_context = context
             .get_relevant_context(query_embedding, Some(session_id), 5)
             .await?;
+        trace!("Retrieved {} context entries", relevant_context.len());
 
         // Build context-aware prompt
         let mut full_prompt = String::new();
@@ -154,13 +163,26 @@ Respond in a conversational and helpful manner, using tools as needed to provide
         full_prompt.push_str("Current request: ");
         full_prompt.push_str(prompt);
 
+        trace!(
+            "Built full prompt for LLM (length: {} chars)",
+            full_prompt.len()
+        );
+        if self.config.verbose {
+            trace!("Full prompt content:\n{}", full_prompt);
+        }
+
         // Phase 4: Thinking/Processing
         progress.update_phase(ProgressPhase::Thinking, None).await;
+        trace!("Sending request to LLM with tools...");
 
         // Try with tools first, fallback to no tools if not supported
         let response = match self.try_with_tools(&full_prompt, session_id).await {
-            Ok(response) => response,
+            Ok(response) => {
+                trace!("LLM responded successfully");
+                response
+            }
             Err(e) => {
+                trace!("LLM request failed with error: {}", e);
                 let error_msg = e.to_string();
                 if error_msg.contains("No endpoints found that support tool use")
                     || error_msg.contains("tool")
@@ -238,10 +260,16 @@ Respond in a conversational and helpful manner, using tools as needed to provide
 
     /// Try to get response with tools enabled
     async fn try_with_tools(&self, full_prompt: &str, session_id: &str) -> Result<String> {
+        trace!(
+            "Attempting LLM request with provider: {}",
+            self.config.provider
+        );
         match self.config.provider.as_str() {
             "openai" => {
+                trace!("Creating OpenAI client and agent...");
                 let client = providers::openai::Client::from_env();
                 let system_prompt = self.get_system_prompt()?;
+                trace!("Building agent with model: {}", self.config.model);
                 let agent = client
                     .agent(&self.config.model)
                     .preamble(&system_prompt)
@@ -261,10 +289,21 @@ Respond in a conversational and helpful manner, using tools as needed to provide
                     })
                     .build();
 
-                agent
+                trace!("Sending prompt to OpenAI agent...");
+                let result = agent
                     .prompt(full_prompt)
                     .await
-                    .map_err(|e| anyhow::anyhow!(e))
+                    .map_err(|e| anyhow::anyhow!(e));
+
+                match &result {
+                    Ok(response) => trace!(
+                        "OpenAI agent returned response (length: {} chars)",
+                        response.len()
+                    ),
+                    Err(e) => trace!("OpenAI agent failed: {}", e),
+                }
+
+                result
             }
             "openrouter" => {
                 let client = providers::openrouter::Client::from_env();
